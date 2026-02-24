@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAgentStore } from '../stores/agentStore';
 import { useChatStore } from '../stores/chatStore';
+import { useActivityStore } from '../stores/activityStore';
 
 type ServerEvent = {
   type: string;
@@ -11,7 +12,6 @@ export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const updateAgent = useAgentStore((s) => s.updateAgent);
-  const { appendToMessage, updateMessage, addMessage, setStreaming } = useChatStore.getState();
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -42,13 +42,11 @@ export function useWebSocket() {
   }, []);
 
   const handleEvent = useCallback((event: ServerEvent) => {
-    const store = useChatStore.getState();
-
     switch (event.type) {
       case 'message_chunk': {
         const { message_id, content, done, conversation_id } = event as any;
+        const store = useChatStore.getState();
         if (content) {
-          // Check if this message exists already
           const existing = store.messages.find((m) => m.id === message_id);
           if (existing) {
             useChatStore.getState().appendToMessage(message_id, content);
@@ -78,6 +76,43 @@ export function useWebSocket() {
         break;
       }
 
+      case 'activity': {
+        const { agent_id, action, detail } = event as any;
+        useActivityStore.getState().addActivity({
+          id: `ws-${Date.now()}`,
+          agent_id,
+          action,
+          detail,
+          status: 'completed',
+          created_at: new Date().toISOString(),
+        });
+        break;
+      }
+
+      case 'token_usage': {
+        const { agent_id, input_tokens, output_tokens, cost_usd } = event as any;
+        useActivityStore.getState().updateUsage(agent_id, {
+          total_input_tokens: input_tokens,
+          total_output_tokens: output_tokens,
+          total_cost_usd: cost_usd,
+          message_count: 1,
+        });
+        break;
+      }
+
+      case 'approval_request': {
+        const { approval_id, agent_id, action_type, action_detail } = event as any;
+        useActivityStore.getState().addApproval({
+          id: approval_id,
+          agent_id,
+          action_type,
+          action_detail,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        });
+        break;
+      }
+
       case 'error': {
         console.error('[vault] Server error:', (event as any).message);
         useChatStore.getState().setStreaming(false);
@@ -93,7 +128,6 @@ export function useWebSocket() {
   }, []);
 
   const sendMessage = useCallback((conversationId: string, content: string) => {
-    // Add optimistic user message
     useChatStore.getState().addMessage({
       id: `temp-${Date.now()}`,
       conversation_id: conversationId,

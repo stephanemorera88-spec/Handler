@@ -300,6 +300,10 @@ export function createActivity(
 
 // ─── Approvals ───────────────────────────────────────────────────────
 
+export function getApproval(id: string): Approval | null {
+  return (getDb().prepare('SELECT * FROM approvals WHERE id = ?').get(id) as Approval) || null;
+}
+
 export function listApprovals(status?: ApprovalStatus): Approval[] {
   if (status) {
     return getDb()

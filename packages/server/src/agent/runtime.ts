@@ -80,6 +80,17 @@ export class AgentRuntime {
     messageId: string,
     onChunk: (chunk: string, done: boolean) => void,
   ): Promise<void> {
+    // Approval gate: if agent requires approval, hold until approved
+    if (agent.permissions.requires_approval) {
+      const approved = await this.requestApproval(agent, 'send_message', content);
+      if (!approved) {
+        const deniedText = 'Message denied by user.';
+        db.updateMessageContent(messageId, deniedText);
+        onChunk(deniedText, true);
+        return;
+      }
+    }
+
     const containerProc = containerAgents.get(agent.id);
 
     if (containerProc) {
@@ -97,6 +108,42 @@ export class AgentRuntime {
     await this.runDirect(agent, conversation, content, messageId, onChunk);
   }
 
+  private requestApproval(agent: Agent, actionType: string, actionDetail: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const approval = db.createApproval(agent.id, actionType, actionDetail);
+
+      // Notify all clients
+      broadcast({
+        type: 'approval_request',
+        approval_id: approval.id,
+        agent_id: agent.id,
+        action_type: actionType,
+        action_detail: actionDetail,
+      });
+
+      db.createActivity(agent.id, 'approval_requested', `Waiting for approval: ${actionType}`);
+
+      // Poll for resolution
+      const poll = setInterval(() => {
+        const updated = db.getApproval(approval.id);
+        if (updated && updated.status !== 'pending') {
+          clearInterval(poll);
+          resolve(updated.status === 'approved');
+        }
+      }, 500);
+
+      // Auto-deny after 5 minutes
+      setTimeout(() => {
+        clearInterval(poll);
+        const current = db.getApproval(approval.id);
+        if (current && current.status === 'pending') {
+          db.resolveApproval(approval.id, 'denied');
+          resolve(false);
+        }
+      }, 300000);
+    });
+  }
+
   private async runDirect(
     agent: Agent,
     conversation: Conversation,
@@ -108,6 +155,16 @@ export class AgentRuntime {
 
     let fullResponse = '';
 
+    // Check cost limit before sending
+    const currentUsage = db.getUsageSummary(agent.id);
+    if (currentUsage.total_cost_usd >= agent.permissions.max_cost_usd) {
+      const errorText = `Cost limit reached ($${currentUsage.total_cost_usd.toFixed(4)} / $${agent.permissions.max_cost_usd.toFixed(2)}). Increase the agent's cost limit to continue.`;
+      db.updateMessageContent(messageId, errorText);
+      onChunk(errorText, true);
+      db.createActivity(agent.id, 'cost_limit_reached', errorText, 'failed');
+      return;
+    }
+
     try {
       db.createActivity(agent.id, 'message_processing', `Sending to ${agent.model}`);
 
@@ -115,9 +172,37 @@ export class AgentRuntime {
         prompt: content,
         systemPrompt: agent.system_prompt || undefined,
         model: agent.model,
+        maxBudgetUsd: agent.permissions.max_cost_usd - currentUsage.total_cost_usd,
         onChunk: (text) => {
           fullResponse += text;
           onChunk(text, false);
+        },
+        onUsage: (usage) => {
+          // Record token usage in DB
+          db.recordUsage(
+            agent.id,
+            conversation.id,
+            usage.input_tokens,
+            usage.output_tokens,
+            usage.total_cost_usd,
+            usage.model,
+          );
+
+          // Broadcast usage event to all clients
+          broadcast({
+            type: 'token_usage',
+            agent_id: agent.id,
+            conversation_id: conversation.id,
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+            cost_usd: usage.total_cost_usd,
+          });
+
+          db.createActivity(
+            agent.id,
+            'tokens_used',
+            `${usage.input_tokens} in / ${usage.output_tokens} out — $${usage.total_cost_usd.toFixed(4)}`,
+          );
         },
       });
 

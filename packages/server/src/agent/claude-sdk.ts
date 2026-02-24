@@ -1,25 +1,37 @@
 import { spawn } from 'child_process';
 import { logger } from '../logger';
 
+export interface ClaudeUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  total_cost_usd: number;
+  model: string;
+  duration_ms: number;
+}
+
 interface ClaudeCodeOptions {
   prompt: string;
   systemPrompt?: string;
   model?: string;
+  maxBudgetUsd?: number;
   onChunk?: (text: string) => void;
+  onUsage?: (usage: ClaudeUsage) => void;
 }
 
 /**
  * Direct mode: Runs Claude via the Claude Code CLI on the host machine.
- * Used when Docker is not available or for development.
- * Streams output via stdout parsing.
+ * Uses stream-json format to get both streaming text and token usage.
  */
 export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
-  const { prompt, systemPrompt, model, onChunk } = options;
+  const { prompt, systemPrompt, model, maxBudgetUsd, onChunk, onUsage } = options;
 
   return new Promise((resolve, reject) => {
     const args = [
       '--print',
-      '--output-format', 'text',
+      '--output-format', 'stream-json',
+      '--verbose',
     ];
 
     if (systemPrompt) {
@@ -28,6 +40,10 @@ export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
 
     if (model) {
       args.push('--model', model);
+    }
+
+    if (maxBudgetUsd) {
+      args.push('--max-budget-usd', String(maxBudgetUsd));
     }
 
     args.push(prompt);
@@ -41,25 +57,87 @@ export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
       env: cleanEnv,
     });
 
-    // Close stdin immediately — claude CLI hangs waiting for input otherwise
     proc.stdin!.end();
 
-    let output = '';
+    let fullText = '';
     let error = '';
+    let buffer = '';
 
     proc.stdout!.on('data', (data: Buffer) => {
-      const text = data.toString();
-      output += text;
-      onChunk?.(text);
+      buffer += data.toString();
+
+      // Parse newline-delimited JSON
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+          handleEvent(event);
+        } catch {
+          // Skip unparseable lines
+        }
+      }
     });
+
+    function handleEvent(event: any) {
+      switch (event.type) {
+        case 'assistant': {
+          // Extract text content from assistant message
+          const content = event.message?.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === 'text' && block.text) {
+                fullText += block.text;
+                onChunk?.(block.text);
+              }
+            }
+          }
+          break;
+        }
+
+        case 'result': {
+          // Final result with usage data
+          const usage = event.usage || {};
+          const modelUsage = event.modelUsage || {};
+          const modelKey = Object.keys(modelUsage)[0] || model || 'unknown';
+          const modelData = modelUsage[modelKey] || {};
+
+          onUsage?.({
+            input_tokens: modelData.inputTokens || usage.input_tokens || 0,
+            output_tokens: modelData.outputTokens || usage.output_tokens || 0,
+            cache_read_tokens: modelData.cacheReadInputTokens || usage.cache_read_input_tokens || 0,
+            cache_creation_tokens: modelData.cacheCreationInputTokens || usage.cache_creation_input_tokens || 0,
+            total_cost_usd: event.total_cost_usd || modelData.costUSD || 0,
+            model: modelKey,
+            duration_ms: event.duration_ms || 0,
+          });
+
+          // Use result text if we didn't get streaming content
+          if (!fullText && event.result) {
+            fullText = event.result;
+            onChunk?.(event.result);
+          }
+          break;
+        }
+      }
+    }
 
     proc.stderr!.on('data', (data: Buffer) => {
       error += data.toString();
     });
 
     proc.on('close', (code) => {
+      // Process any remaining buffer
+      if (buffer.trim()) {
+        try {
+          handleEvent(JSON.parse(buffer));
+        } catch { /* ignore */ }
+      }
+
       if (code === 0) {
-        resolve(output);
+        resolve(fullText);
       } else {
         logger.error('Claude CLI error (code %s): %s', String(code), error);
         reject(new Error(error || `Claude CLI exited with code ${code}`));
