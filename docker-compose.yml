@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  # Build the agent container image (used by runtime to spawn agent containers)
+  agent-image:
+    build:
+      context: ./packages/server/container
+      dockerfile: Dockerfile
+    image: vault-agent:latest
+    # This service just builds the image — no container runs
+    profiles:
+      - build
