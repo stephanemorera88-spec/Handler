@@ -34,7 +34,7 @@ export function InputBar({ onSend, disabled }: Props) {
     const el = textareaRef.current;
     if (el) {
       el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
     }
   }, [value]);
 
@@ -54,7 +54,7 @@ export function InputBar({ onSend, disabled }: Props) {
         onClick={handleSubmit}
         disabled={!value.trim() || disabled}
       >
-        Send
+        &#9650;
       </button>
     </div>
   );

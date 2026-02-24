@@ -96,4 +96,12 @@ router.post('/:id/kill', async (req: Request, res: Response) => {
   }
 });
 
+// DELETE /api/agents/:id
+router.delete('/:id', (req: Request, res: Response) => {
+  const agent = db.getAgent(req.params.id as string);
+  if (!agent) return res.status(404).json({ error: 'Agent not found' });
+  db.deleteAgent(agent.id);
+  res.json({ message: 'Agent deleted' });
+});
+
 export default router;

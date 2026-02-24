@@ -1,15 +1,20 @@
 import { useAgentStore } from '../../stores/agentStore';
+import { useUIStore } from '../../stores/uiStore';
 import { StatusBadge } from '../controls/StatusBadge';
 import { KillSwitch } from '../controls/KillSwitch';
 
 export function Header() {
   const { agents, selectedAgentId } = useAgentStore();
+  const { toggleSidebar } = useUIStore();
   const agent = agents.find((a) => a.id === selectedAgentId);
 
   if (!agent) {
     return (
       <div className="header">
-        <div className="header-title">Select an agent to start chatting</div>
+        <div className="header-left">
+          <button className="menu-btn" onClick={toggleSidebar}>&#9776;</button>
+          <div className="header-title">Vault</div>
+        </div>
       </div>
     );
   }
@@ -17,6 +22,7 @@ export function Header() {
   return (
     <div className="header">
       <div className="header-left">
+        <button className="menu-btn" onClick={toggleSidebar}>&#9776;</button>
         <h2 className="header-title">{agent.name}</h2>
         <StatusBadge status={agent.status} />
         <span className="header-model">{agent.model}</span>

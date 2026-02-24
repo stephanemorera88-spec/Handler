@@ -56,7 +56,7 @@ async function handleClientEvent(ws: WebSocket, event: ClientEvent) {
       // Send the message to the agent runtime
       const runtime = getRuntime();
       try {
-        await runtime.sendMessage(agent, conversation, event.content, (chunk, done) => {
+        await runtime.sendMessage(agent, conversation, event.content, assistantMsg.id, (chunk, done) => {
           broadcast({
             type: 'message_chunk',
             conversation_id: conversation.id,

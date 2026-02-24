@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { useChatStore } from '../../stores/chatStore';
+import { useUIStore } from '../../stores/uiStore';
 import { AgentList } from '../agents/AgentList';
 import { AgentConfig } from '../agents/AgentConfig';
 
@@ -8,6 +9,7 @@ export function Sidebar() {
   const [showConfig, setShowConfig] = useState(false);
   const { agents, selectedAgentId, fetchAgents, selectAgent } = useAgentStore();
   const { fetchConversations, conversations, selectConversation, createConversation } = useChatStore();
+  const { sidebarOpen, closeSidebar } = useUIStore();
 
   useEffect(() => {
     fetchAgents();
@@ -23,14 +25,23 @@ export function Sidebar() {
     if (!selectedAgentId) return;
     const conv = await createConversation(selectedAgentId);
     selectConversation(conv.id);
+    closeSidebar();
+  };
+
+  const handleSelectAgent = (id: string) => {
+    selectAgent(id);
+    selectConversation(null);
+  };
+
+  const handleSelectConversation = (id: string) => {
+    selectConversation(id);
+    closeSidebar();
   };
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
-        <h1 className="logo">
-          <span className="logo-icon">&#x1f512;</span> Vault
-        </h1>
+        <h1 className="logo">Vault</h1>
         <button className="btn btn-sm" onClick={() => setShowConfig(true)}>
           + Agent
         </button>
@@ -39,10 +50,7 @@ export function Sidebar() {
       <AgentList
         agents={agents}
         selectedId={selectedAgentId}
-        onSelect={(id) => {
-          selectAgent(id);
-          selectConversation(null);
-        }}
+        onSelect={handleSelectAgent}
       />
 
       {selectedAgentId && (
@@ -59,7 +67,7 @@ export function Sidebar() {
               className={`conversation-item ${
                 useChatStore.getState().selectedConversationId === conv.id ? 'active' : ''
               }`}
-              onClick={() => selectConversation(conv.id)}
+              onClick={() => handleSelectConversation(conv.id)}
             >
               {conv.title}
             </div>

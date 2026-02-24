@@ -32,10 +32,17 @@ export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
 
     args.push(prompt);
 
+    const cleanEnv = { ...process.env };
+    delete cleanEnv.CLAUDECODE;
+    delete cleanEnv.CLAUDE_CODE_SESSION;
+
     const proc = spawn('claude', args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
+      env: cleanEnv,
     });
+
+    // Close stdin immediately — claude CLI hangs waiting for input otherwise
+    proc.stdin!.end();
 
     let output = '';
     let error = '';

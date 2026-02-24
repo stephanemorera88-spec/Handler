@@ -197,6 +197,10 @@ export function createAgent(input: CreateAgentInput): Agent {
   return getAgent(id)!;
 }
 
+export function deleteAgent(id: string): void {
+  getDb().prepare('DELETE FROM agents WHERE id = ?').run(id);
+}
+
 export function updateAgentStatus(id: string, status: AgentStatus, containerId?: string | null): void {
   getDb().prepare(`
     UPDATE agents SET status = ?, container_id = ?, updated_at = datetime('now') WHERE id = ?

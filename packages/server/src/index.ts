@@ -9,6 +9,10 @@ import conversationRoutes from './routes/conversations';
 import activityRoutes from './routes/activity';
 import approvalRoutes from './routes/approvals';
 
+// Clean Claude Code env vars so child processes (claude CLI) don't think they're nested
+delete process.env.CLAUDECODE;
+delete process.env.CLAUDE_CODE_SESSION;
+
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
 const app = express();
@@ -44,6 +48,6 @@ initWebSocket(server);
 logger.info('WebSocket server ready');
 
 // Start
-server.listen(PORT, () => {
-  logger.info('Vault server running on http://localhost:%d', PORT);
+server.listen(PORT, '0.0.0.0', () => {
+  logger.info('Vault server running on http://0.0.0.0:%d', PORT);
 });
