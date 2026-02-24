@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import toast from 'react-hot-toast';
 
 interface ActivityEntry {
   id: string;
@@ -103,5 +104,6 @@ export const useActivityStore = create<ActivityStore>((set, get) => ({
       body: JSON.stringify({ status }),
     });
     get().removeApproval(id);
+    toast.success(status === 'approved' ? 'Approved' : 'Denied');
   },
 }));

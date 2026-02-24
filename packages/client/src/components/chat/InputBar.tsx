@@ -3,9 +3,10 @@ import { useState, useRef, useEffect } from 'react';
 interface Props {
   onSend: (content: string) => void;
   disabled?: boolean;
+  placeholder?: string;
 }
 
-export function InputBar({ onSend, disabled }: Props) {
+export function InputBar({ onSend, disabled, placeholder }: Props) {
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -45,7 +46,7 @@ export function InputBar({ onSend, disabled }: Props) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={disabled ? 'Waiting for response...' : 'Type a message...'}
+        placeholder={placeholder || 'Type a message...'}
         disabled={disabled}
         rows={1}
       />

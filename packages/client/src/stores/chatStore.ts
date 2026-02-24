@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import toast from 'react-hot-toast';
 
 interface Message {
   id: string;
@@ -21,12 +22,23 @@ interface Conversation {
   updated_at: string;
 }
 
+interface SearchResult {
+  id: string;
+  conversation_id: string;
+  content: string;
+  role: string;
+  created_at: string;
+  conversation_title: string;
+}
+
 interface ChatStore {
   conversations: Conversation[];
   selectedConversationId: string | null;
   messages: Message[];
   loading: boolean;
   streaming: boolean;
+  searchResults: SearchResult[];
+  searchQuery: string;
 
   setConversations: (conversations: Conversation[]) => void;
   selectConversation: (id: string | null) => void;
@@ -39,6 +51,10 @@ interface ChatStore {
   fetchConversations: (agentId: string) => Promise<void>;
   fetchMessages: (conversationId: string) => Promise<void>;
   createConversation: (agentId: string, title?: string) => Promise<Conversation>;
+  deleteConversation: (id: string) => Promise<void>;
+  renameConversation: (id: string, title: string) => Promise<void>;
+  searchMessages: (agentId: string, query: string) => Promise<void>;
+  clearSearch: () => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -47,6 +63,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
   loading: false,
   streaming: false,
+  searchResults: [],
+  searchQuery: '',
 
   setConversations: (conversations) => set({ conversations }),
   selectConversation: (id) => set({ selectedConversationId: id }),
@@ -96,4 +114,52 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set((s) => ({ conversations: [conversation, ...s.conversations] }));
     return conversation;
   },
+
+  deleteConversation: async (id) => {
+    try {
+      await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
+      const wasSelected = get().selectedConversationId === id;
+      set((s) => ({
+        conversations: s.conversations.filter((c) => c.id !== id),
+        selectedConversationId: wasSelected ? null : s.selectedConversationId,
+        messages: wasSelected ? [] : s.messages,
+      }));
+      toast.success('Conversation deleted');
+    } catch {
+      toast.error('Failed to delete conversation');
+    }
+  },
+
+  renameConversation: async (id, title) => {
+    try {
+      const res = await fetch(`/api/conversations/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      const updated = await res.json();
+      set((s) => ({
+        conversations: s.conversations.map((c) => (c.id === id ? { ...c, ...updated } : c)),
+      }));
+    } catch {
+      toast.error('Failed to rename conversation');
+    }
+  },
+
+  searchMessages: async (agentId, query) => {
+    set({ searchQuery: query });
+    if (!query.trim()) {
+      set({ searchResults: [] });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/agents/${agentId}/search?q=${encodeURIComponent(query)}`);
+      const results = await res.json();
+      set({ searchResults: results });
+    } catch {
+      set({ searchResults: [] });
+    }
+  },
+
+  clearSearch: () => set({ searchResults: [], searchQuery: '' }),
 }));

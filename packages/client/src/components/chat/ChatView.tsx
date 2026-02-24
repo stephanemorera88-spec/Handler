@@ -9,8 +9,9 @@ interface Props {
 }
 
 export function ChatView({ sendMessage }: Props) {
-  const { selectedConversationId, messages, fetchMessages, streaming, createConversation, selectConversation } = useChatStore();
+  const { selectedConversationId, messages, fetchMessages, streaming, loading, createConversation, selectConversation } = useChatStore();
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const agent = useAgentStore((s) => s.agents.find((a) => a.id === s.selectedAgentId));
 
   useEffect(() => {
     if (selectedConversationId) {
@@ -37,6 +38,7 @@ export function ChatView({ sendMessage }: Props) {
     return (
       <div className="chat-empty">
         <div className="chat-empty-content">
+          <div className="chat-empty-icon">V</div>
           <h2>Welcome to Vault</h2>
           <p>Select an agent from the sidebar or create a new one to get started.</p>
         </div>
@@ -44,10 +46,28 @@ export function ChatView({ sendMessage }: Props) {
     );
   }
 
+  const isRunning = agent?.status === 'running';
+
   return (
     <div className="chat-view">
-      <MessageList messages={messages} />
-      <InputBar onSend={handleSend} disabled={streaming} />
+      {loading ? (
+        <div className="chat-loading">
+          <div className="spinner" />
+        </div>
+      ) : (
+        <MessageList messages={messages} />
+      )}
+      <InputBar
+        onSend={handleSend}
+        disabled={streaming || !isRunning}
+        placeholder={
+          !isRunning
+            ? `Start ${agent?.name || 'agent'} to send messages`
+            : streaming
+              ? 'Waiting for response...'
+              : 'Type a message...'
+        }
+      />
     </div>
   );
 }

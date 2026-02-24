@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useAgentStore } from '../stores/agentStore';
 import { useChatStore } from '../stores/chatStore';
 import { useActivityStore } from '../stores/activityStore';
@@ -110,12 +111,15 @@ export function useWebSocket() {
           status: 'pending',
           created_at: new Date().toISOString(),
         });
+        toast('Approval required', { icon: '⚡' });
         break;
       }
 
       case 'error': {
-        console.error('[vault] Server error:', (event as any).message);
+        const msg = (event as any).message || 'Unknown error';
+        console.error('[vault] Server error:', msg);
         useChatStore.getState().setStreaming(false);
+        toast.error(msg);
         break;
       }
     }

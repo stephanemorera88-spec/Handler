@@ -201,6 +201,29 @@ export function deleteAgent(id: string): void {
   getDb().prepare('DELETE FROM agents WHERE id = ?').run(id);
 }
 
+export function updateAgent(id: string, updates: Partial<CreateAgentInput>): Agent | null {
+  const agent = getAgent(id);
+  if (!agent) return null;
+
+  const name = updates.name ?? agent.name;
+  const description = updates.description ?? agent.description;
+  const model = updates.model ?? agent.model;
+  const system_prompt = updates.system_prompt ?? agent.system_prompt;
+  const permissions = updates.permissions
+    ? { ...agent.permissions, ...updates.permissions }
+    : agent.permissions;
+  const config = updates.config
+    ? { ...agent.config, ...updates.config }
+    : agent.config;
+
+  getDb().prepare(`
+    UPDATE agents SET name = ?, description = ?, model = ?, system_prompt = ?,
+    permissions = ?, config = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(name, description, model, system_prompt, JSON.stringify(permissions), JSON.stringify(config), id);
+
+  return getAgent(id);
+}
+
 export function updateAgentStatus(id: string, status: AgentStatus, containerId?: string | null): void {
   getDb().prepare(`
     UPDATE agents SET status = ?, container_id = ?, updated_at = datetime('now') WHERE id = ?
@@ -227,10 +250,32 @@ export function createConversation(agentId: string, title?: string): Conversatio
   return getConversation(id)!;
 }
 
+export function deleteConversation(id: string): void {
+  getDb().prepare('DELETE FROM conversations WHERE id = ?').run(id);
+}
+
+export function renameConversation(id: string, title: string): Conversation | null {
+  getDb().prepare(`
+    UPDATE conversations SET title = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(title, id);
+  return getConversation(id);
+}
+
 export function updateConversationSession(id: string, sessionId: string): void {
   getDb().prepare(`
     UPDATE conversations SET session_id = ?, updated_at = datetime('now') WHERE id = ?
   `).run(sessionId, id);
+}
+
+export function searchMessages(agentId: string, query: string, limit = 20): (Message & { conversation_title: string })[] {
+  return getDb().prepare(`
+    SELECT m.*, c.title as conversation_title
+    FROM messages m
+    JOIN conversations c ON c.id = m.conversation_id
+    WHERE c.agent_id = ? AND m.content LIKE ?
+    ORDER BY m.created_at DESC
+    LIMIT ?
+  `).all(agentId, `%${query}%`, limit) as any[];
 }
 
 // ─── Messages ────────────────────────────────────────────────────────

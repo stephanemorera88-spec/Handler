@@ -28,7 +28,13 @@ export function MessageBubble({ message }: Props) {
         ) : (
           <p>{message.content}</p>
         )}
-        {message.streaming && <span className="typing-indicator">...</span>}
+        {message.streaming && (
+          <span className="typing-indicator">
+            <span className="dot" />
+            <span className="dot" />
+            <span className="dot" />
+          </span>
+        )}
       </div>
     </div>
   );

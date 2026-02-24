@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Highlight, themes } from 'prism-react-renderer';
 
 interface Props {
   language: string;
@@ -22,9 +23,20 @@ export function CodeBlock({ language, code }: Props) {
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
-      <pre>
-        <code>{code}</code>
-      </pre>
+      <Highlight theme={themes.nightOwl} code={code} language={language}>
+        {({ style, tokens, getLineProps, getTokenProps }) => (
+          <pre style={{ ...style, margin: 0, padding: '12px 16px', background: 'transparent', overflow: 'auto' }}>
+            {tokens.map((line, i) => (
+              <div key={i} {...getLineProps({ line })}>
+                <span className="code-line-number">{i + 1}</span>
+                {line.map((token, key) => (
+                  <span key={key} {...getTokenProps({ token })} />
+                ))}
+              </div>
+            ))}
+          </pre>
+        )}
+      </Highlight>
     </div>
   );
 }

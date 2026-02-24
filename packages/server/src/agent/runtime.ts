@@ -13,6 +13,9 @@ const OUTPUT_END_MARKER = '---VAULT_OUTPUT_END---';
 // Track which agents are "running" (in direct mode, just a flag)
 const runningAgents = new Set<string>();
 
+// Global concurrency limit
+const MAX_CONCURRENT_AGENTS = 5;
+
 // Track Docker container processes (when using container mode)
 interface AgentProcess {
   agent_id: string;
@@ -55,10 +58,22 @@ export class AgentRuntime {
     logger.info('Agent runtime mode: %s', this.dockerAvailable ? 'Docker containers' : 'Direct (no Docker)');
   }
 
+  getRunningCount(): number {
+    return runningAgents.size;
+  }
+
+  isAgentRunning(agentId: string): boolean {
+    return runningAgents.has(agentId);
+  }
+
   async startAgent(agent: Agent): Promise<void> {
     if (runningAgents.has(agent.id)) {
       logger.warn('Agent %s already running', agent.id);
       return;
+    }
+
+    if (runningAgents.size >= MAX_CONCURRENT_AGENTS) {
+      throw new Error(`Concurrent agent limit reached (${MAX_CONCURRENT_AGENTS}). Stop another agent first.`);
     }
 
     if (this.dockerAvailable) {

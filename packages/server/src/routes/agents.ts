@@ -96,6 +96,14 @@ router.post('/:id/kill', async (req: Request, res: Response) => {
   }
 });
 
+// PATCH /api/agents/:id — Update agent config
+router.patch('/:id', (req: Request, res: Response) => {
+  const agent = db.getAgent(req.params.id as string);
+  if (!agent) return res.status(404).json({ error: 'Agent not found' });
+  const updated = db.updateAgent(agent.id, req.body);
+  res.json(updated);
+});
+
 // DELETE /api/agents/:id
 router.delete('/:id', (req: Request, res: Response) => {
   const agent = db.getAgent(req.params.id as string);
