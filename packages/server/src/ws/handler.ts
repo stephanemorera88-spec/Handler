@@ -4,13 +4,52 @@ import type { ClientEvent, ServerEvent } from '@vault/shared';
 import * as db from '../db';
 import { getRuntime } from '../agent/runtime';
 import { logger } from '../logger';
+import { verifyWsToken } from '../auth';
 
 const clients = new Set<WebSocket>();
+
+// Per-agent message queue: ensures messages are processed sequentially per agent
+const agentQueues = new Map<string, Promise<void>>();
+
+function enqueueForAgent(agentId: string, fn: () => Promise<void>): Promise<void> {
+  const prev = agentQueues.get(agentId) || Promise.resolve();
+  const next = prev.then(fn, fn); // Run even if previous failed
+  agentQueues.set(agentId, next);
+  // Clean up entry when queue drains
+  next.then(() => {
+    if (agentQueues.get(agentId) === next) {
+      agentQueues.delete(agentId);
+    }
+  });
+  return next;
+}
 
 let wss: WebSocketServer;
 
 export function initWebSocket(server: Server) {
-  wss = new WebSocketServer({ server, path: '/ws' });
+  wss = new WebSocketServer({ noServer: true });
+
+  // Handle upgrade manually so /ws/agent doesn't get rejected
+  // This listener runs first; agent-handler.ts adds a second listener for /ws/agent
+  // Unknown paths are destroyed here to prevent socket/fd leaks
+  server.on('upgrade', (req, socket, head) => {
+    const url = new URL(req.url || '', `http://${req.headers.host}`);
+    if (url.pathname === '/ws') {
+      // Verify JWT token for browser clients
+      if (!verifyWsToken(req.url || '')) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    } else if (url.pathname !== '/ws/agent') {
+      // Unknown path — destroy the socket to prevent file descriptor leaks
+      socket.destroy();
+    }
+    // /ws/agent is handled by agent-handler.ts
+  });
 
   wss.on('connection', (ws) => {
     clients.add(ws);
@@ -41,41 +80,49 @@ async function handleClientEvent(ws: WebSocket, event: ClientEvent) {
         return sendTo(ws, { type: 'error', message: 'Conversation not found', conversation_id: event.conversation_id });
       }
 
-      // Store user message
-      const userMsg = db.createMessage(conversation.id, 'user', event.content);
-
       // Get the agent
       const agent = db.getAgent(conversation.agent_id);
       if (!agent) {
         return sendTo(ws, { type: 'error', message: 'Agent not found' });
       }
 
-      // Create placeholder for assistant response
-      const assistantMsg = db.createMessage(conversation.id, 'assistant', '', 'markdown');
+      // Enqueue so concurrent messages to the same agent are processed sequentially
+      enqueueForAgent(agent.id, async () => {
+        // Store user message
+        db.createMessage(conversation.id, 'user', event.content);
 
-      // Send the message to the agent runtime
-      const runtime = getRuntime();
-      try {
-        await runtime.sendMessage(agent, conversation, event.content, assistantMsg.id, (chunk, done) => {
-          broadcast({
-            type: 'message_chunk',
-            conversation_id: conversation.id,
-            message_id: assistantMsg.id,
-            role: 'assistant',
-            content: chunk,
-            content_type: 'markdown',
-            done,
+        // Create placeholder for assistant response
+        const assistantMsg = db.createMessage(conversation.id, 'assistant', '', 'markdown');
+
+        // Send the message to the agent runtime
+        const runtime = getRuntime();
+        try {
+          await runtime.sendMessage(agent, conversation, event.content, assistantMsg.id, (chunk, done) => {
+            broadcast({
+              type: 'message_chunk',
+              conversation_id: conversation.id,
+              message_id: assistantMsg.id,
+              role: 'assistant',
+              content: chunk,
+              content_type: 'markdown',
+              done,
+            });
           });
-        });
-      } catch (err: any) {
-        logger.error('Agent message error: %s', err.message);
-        broadcast({
-          type: 'error',
-          message: err.message,
-          agent_id: agent.id,
-          conversation_id: conversation.id,
-        });
-      }
+        } catch (err: any) {
+          logger.error('Agent message error: %s', err.message);
+          // Clean up the empty assistant placeholder so users don't see a blank bubble
+          const msg = db.getMessageById(assistantMsg.id);
+          if (msg && !msg.content) {
+            db.deleteMessage(assistantMsg.id);
+          }
+          broadcast({
+            type: 'error',
+            message: err.message,
+            agent_id: agent.id,
+            conversation_id: conversation.id,
+          });
+        }
+      });
       break;
     }
 

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
+import { authHeaders } from './authStore';
 
 interface Agent {
   id: string;
@@ -10,6 +11,7 @@ interface Agent {
   system_prompt: string;
   status: 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
   container_id: string | null;
+  connection_type: 'builtin' | 'external';
   permissions: Record<string, unknown>;
   config: Record<string, unknown>;
   created_at: string;
@@ -30,10 +32,11 @@ interface AgentStore {
   createAgent: (input: {
     name: string;
     description?: string;
+    connection_type?: 'builtin' | 'external';
     provider: string;
     model: string;
     system_prompt?: string;
-  }) => Promise<Agent>;
+  }) => Promise<Agent & { auth_token?: string }>;
   editAgent: (id: string, updates: Record<string, unknown>) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
   startAgent: (id: string) => Promise<void>;
@@ -63,7 +66,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   fetchAgents: async () => {
     set({ loading: true });
     try {
-      const res = await fetch('/api/agents');
+      const res = await fetch('/api/agents', { headers: authHeaders() });
       const agents = await res.json();
       set({ agents, loading: false });
     } catch {
@@ -76,7 +79,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     try {
       const res = await fetch('/api/agents', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(input),
       });
       const agent = await res.json();
@@ -93,7 +96,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     try {
       const res = await fetch(`/api/agents/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(updates),
       });
       const agent = await res.json();
@@ -106,7 +109,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   deleteAgent: async (id) => {
     try {
-      await fetch(`/api/agents/${id}`, { method: 'DELETE' });
+      await fetch(`/api/agents/${id}`, { method: 'DELETE', headers: authHeaders() });
       get().removeAgent(id);
       toast.success('Agent deleted');
     } catch {
@@ -117,7 +120,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   startAgent: async (id) => {
     try {
       get().updateAgent(id, { status: 'starting' });
-      const res = await fetch(`/api/agents/${id}/start`, { method: 'POST' });
+      const res = await fetch(`/api/agents/${id}/start`, { method: 'POST', headers: authHeaders() });
       const updated = await res.json();
       get().updateAgent(id, updated);
       const agent = get().agents.find((a) => a.id === id);
@@ -131,7 +134,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   stopAgent: async (id) => {
     try {
       get().updateAgent(id, { status: 'stopping' });
-      const res = await fetch(`/api/agents/${id}/stop`, { method: 'POST' });
+      const res = await fetch(`/api/agents/${id}/stop`, { method: 'POST', headers: authHeaders() });
       const updated = await res.json();
       get().updateAgent(id, updated);
       toast.success('Agent stopped');
@@ -142,7 +145,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   killAgent: async (id) => {
     try {
-      const res = await fetch(`/api/agents/${id}/kill`, { method: 'POST' });
+      const res = await fetch(`/api/agents/${id}/kill`, { method: 'POST', headers: authHeaders() });
       const updated = await res.json();
       get().updateAgent(id, updated);
       toast('Agent killed', { icon: '💀' });

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
+import { authHeaders } from './authStore';
 
 interface ActivityEntry {
   id: string;
@@ -80,19 +81,19 @@ export const useActivityStore = create<ActivityStore>((set, get) => ({
   setPendingApprovals: (approvals) => set({ pendingApprovals: approvals }),
 
   fetchActivity: async (agentId) => {
-    const res = await fetch(`/api/agents/${agentId}/activity`);
+    const res = await fetch(`/api/agents/${agentId}/activity`, { headers: authHeaders() });
     const data = await res.json();
     set({ activities: data });
   },
 
   fetchUsage: async (agentId) => {
-    const res = await fetch(`/api/agents/${agentId}/usage`);
+    const res = await fetch(`/api/agents/${agentId}/usage`, { headers: authHeaders() });
     const summary = await res.json();
     get().setUsageSummary(agentId, summary);
   },
 
   fetchApprovals: async () => {
-    const res = await fetch('/api/approvals?status=pending');
+    const res = await fetch('/api/approvals?status=pending', { headers: authHeaders() });
     const data = await res.json();
     set({ pendingApprovals: data });
   },
@@ -100,7 +101,7 @@ export const useActivityStore = create<ActivityStore>((set, get) => ({
   resolveApproval: async (id, status) => {
     await fetch(`/api/approvals/${id}/resolve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ status }),
     });
     get().removeApproval(id);

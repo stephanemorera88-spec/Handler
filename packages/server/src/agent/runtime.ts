@@ -5,6 +5,7 @@ import { v4 as uuid } from 'uuid';
 import type { Agent, Conversation } from '@vault/shared';
 import * as db from '../db';
 import { broadcast } from '../ws/handler';
+import { sendToAgent, disconnectAgent } from '../ws/agent-handler';
 import { logger } from '../logger';
 
 const OUTPUT_START_MARKER = '---VAULT_OUTPUT_START---';
@@ -67,6 +68,12 @@ export class AgentRuntime {
   }
 
   async startAgent(agent: Agent): Promise<void> {
+    // External agents are started by the agent process connecting via WebSocket
+    if (agent.connection_type === 'external') {
+      logger.info('External agent %s — start is managed by the external process', agent.name);
+      return;
+    }
+
     if (runningAgents.has(agent.id)) {
       logger.warn('Agent %s already running', agent.id);
       return;
@@ -95,6 +102,24 @@ export class AgentRuntime {
     messageId: string,
     onChunk: (chunk: string, done: boolean) => void,
   ): Promise<void> {
+    // External agent: route via WebSocket, response arrives async
+    if (agent.connection_type === 'external') {
+      logger.info('Routing message to external agent %s (msg: %s)', agent.id, messageId);
+      const sent = sendToAgent(agent.id, {
+        type: 'server.message',
+        request_id: messageId,
+        conversation_id: conversation.id,
+        content,
+      });
+      logger.info('sendToAgent result: %s', sent);
+      if (!sent) {
+        const errorText = 'Agent is not connected. Start your external agent process to send messages.';
+        db.updateMessageContent(messageId, errorText);
+        onChunk(errorText, true);
+      }
+      return; // Response arrives async via agent-handler
+    }
+
     // Approval gate: if agent requires approval, hold until approved
     if (agent.permissions.requires_approval) {
       const approved = await this.requestApproval(agent, 'send_message', content);
@@ -239,6 +264,14 @@ export class AgentRuntime {
   }
 
   async stopAgent(agentId: string): Promise<void> {
+    // External agent: close the WebSocket connection
+    const agent = db.getAgent(agentId);
+    if (agent?.connection_type === 'external') {
+      disconnectAgent(agentId);
+      // Status update happens in the agent-handler disconnect handler
+      return;
+    }
+
     // Container mode
     const proc = containerAgents.get(agentId);
     if (proc) {

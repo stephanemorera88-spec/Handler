@@ -1,9 +1,14 @@
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { getDb } from './db';
 import { initWebSocket } from './ws/handler';
+import { initAgentWebSocket } from './ws/agent-handler';
 import { logger } from './logger';
+import { requireAuth, handleLogin, handleVerify, getSecret } from './auth';
 import agentRoutes from './routes/agents';
 import conversationRoutes from './routes/conversations';
 import activityRoutes from './routes/activity';
@@ -28,24 +33,33 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Routes
+// Public routes (no auth required)
+app.post('/api/auth/login', handleLogin);
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', version: '0.1.0' });
+});
+
+// Auth middleware — everything below requires a valid JWT
+app.use('/api', requireAuth);
+
+// Auth verification (protected — if you reach it, your token is valid)
+app.get('/api/auth/verify', handleVerify);
+
+// Protected routes
 app.use('/api/agents', agentRoutes);
 app.use('/api', conversationRoutes);
 app.use('/api/agents', activityRoutes);
 app.use('/api/approvals', approvalRoutes);
 
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', version: '0.1.0' });
-});
-
-// Initialize database
+// Initialize database and auth
 getDb();
 logger.info('Database initialized');
+getSecret(); // Ensures secret is generated/loaded on startup
 
 // Initialize WebSocket
 initWebSocket(server);
-logger.info('WebSocket server ready');
+initAgentWebSocket(server);
+logger.info('WebSocket server ready (client + agent)');
 
 // Start
 server.listen(PORT, '0.0.0.0', () => {

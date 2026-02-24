@@ -1,7 +1,8 @@
 // ─── Agent ───────────────────────────────────────────────────────────
 
 export type AgentStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'error';
-export type AgentProvider = 'claude' | 'openai' | 'gemini';
+export type AgentProvider = 'claude' | 'openai' | 'gemini' | 'external';
+export type AgentConnectionType = 'builtin' | 'external';
 
 export interface Agent {
   id: string;
@@ -12,6 +13,8 @@ export interface Agent {
   system_prompt: string;
   status: AgentStatus;
   container_id: string | null;
+  connection_type: AgentConnectionType;
+  auth_token: string | null;
   permissions: AgentPermissions;
   config: AgentConfig;
   created_at: string;

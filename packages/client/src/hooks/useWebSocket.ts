@@ -3,56 +3,38 @@ import toast from 'react-hot-toast';
 import { useAgentStore } from '../stores/agentStore';
 import { useChatStore } from '../stores/chatStore';
 import { useActivityStore } from '../stores/activityStore';
+import { useAuthStore } from '../stores/authStore';
 
 type ServerEvent = {
   type: string;
   [key: string]: unknown;
 };
 
+// Singleton WebSocket — shared across React re-mounts (StrictMode safe)
+let globalWs: WebSocket | null = null;
+let globalReconnectTimeout: ReturnType<typeof setTimeout> | undefined;
+let connectionCount = 0;
+
 export function useWebSocket() {
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const updateAgent = useAgentStore((s) => s.updateAgent);
-
-  const connect = useCallback(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('[vault] WebSocket connected');
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data: ServerEvent = JSON.parse(event.data);
-        handleEvent(data);
-      } catch {
-        console.error('[vault] Failed to parse WS message');
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('[vault] WebSocket disconnected, reconnecting...');
-      reconnectTimeout.current = setTimeout(connect, 2000);
-    };
-
-    ws.onerror = () => {
-      ws.close();
-    };
-  }, []);
+  const updateAgentRef = useRef(updateAgent);
+  updateAgentRef.current = updateAgent;
 
   const handleEvent = useCallback((event: ServerEvent) => {
     switch (event.type) {
       case 'message_chunk': {
         const { message_id, content, done, conversation_id } = event as any;
         const store = useChatStore.getState();
+
+        // Only render chunks for the currently selected conversation
+        if (store.selectedConversationId !== conversation_id) break;
+
         if (content) {
           const existing = store.messages.find((m) => m.id === message_id);
           if (existing) {
-            useChatStore.getState().appendToMessage(message_id, content);
+            store.appendToMessage(message_id, content);
           } else {
-            useChatStore.getState().addMessage({
+            store.addMessage({
               id: message_id,
               conversation_id,
               role: 'assistant',
@@ -65,15 +47,24 @@ export function useWebSocket() {
           }
         }
         if (done) {
-          useChatStore.getState().updateMessage(message_id, { streaming: false });
-          useChatStore.getState().setStreaming(false);
+          store.updateMessage(message_id, { streaming: false });
+          store.setStreaming(false);
         }
         break;
       }
 
       case 'agent_status': {
         const { agent_id, status, container_id } = event as any;
-        updateAgent(agent_id, { status, container_id });
+        updateAgentRef.current(agent_id, { status, container_id });
+
+        // If an agent goes offline while we're streaming, reset streaming state
+        // so the input bar doesn't stay permanently disabled
+        if (status === 'stopped' || status === 'error') {
+          const chatState = useChatStore.getState();
+          if (chatState.streaming) {
+            chatState.setStreaming(false);
+          }
+        }
         break;
       }
 
@@ -123,11 +114,50 @@ export function useWebSocket() {
         break;
       }
     }
-  }, [updateAgent]);
+  }, []);
+
+  const connect = useCallback(() => {
+    // Close existing connection if any
+    if (globalWs) {
+      globalWs.onclose = null; // Prevent reconnect loop
+      globalWs.close();
+      globalWs = null;
+    }
+    clearTimeout(globalReconnectTimeout);
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const token = useAuthStore.getState().token;
+    const wsUrl = `${protocol}//${window.location.host}/ws${token ? `?token=${token}` : ''}`;
+    const ws = new WebSocket(wsUrl);
+    globalWs = ws;
+
+    ws.onopen = () => {
+      console.log('[vault] WebSocket connected');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data: ServerEvent = JSON.parse(event.data);
+        handleEvent(data);
+      } catch {
+        console.error('[vault] Failed to parse WS message');
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[vault] WebSocket disconnected, reconnecting...');
+      globalWs = null;
+      globalReconnectTimeout = setTimeout(connect, 2000);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }, [handleEvent]);
 
   const send = useCallback((event: Record<string, unknown>) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(event));
+    if (globalWs?.readyState === WebSocket.OPEN) {
+      globalWs.send(JSON.stringify(event));
     }
   }, []);
 
@@ -151,10 +181,21 @@ export function useWebSocket() {
   }, [send]);
 
   useEffect(() => {
-    connect();
+    connectionCount++;
+    if (connectionCount === 1 || !globalWs) {
+      connect();
+    }
+
     return () => {
-      clearTimeout(reconnectTimeout.current);
-      wsRef.current?.close();
+      connectionCount--;
+      if (connectionCount === 0) {
+        clearTimeout(globalReconnectTimeout);
+        if (globalWs) {
+          globalWs.onclose = null;
+          globalWs.close();
+          globalWs = null;
+        }
+      }
     };
   }, [connect]);
 

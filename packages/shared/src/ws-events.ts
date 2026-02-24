@@ -78,3 +78,44 @@ export type ServerEvent =
   | WsApprovalRequest
   | WsTokenUsage
   | WsError;
+
+// ─── Agent Protocol (External Agent ↔ Vault Server) ─────────────────
+
+// Agent → Vault
+export interface AgentHello {
+  type: 'agent.hello';
+  token: string;
+  name: string;
+  description?: string;
+}
+
+export interface AgentResponseChunk {
+  type: 'agent.response.chunk';
+  request_id: string;
+  content: string;
+  done: boolean;
+}
+
+export interface AgentError {
+  type: 'agent.error';
+  request_id: string;
+  message: string;
+}
+
+export type AgentEvent = AgentHello | AgentResponseChunk | AgentError;
+
+// Vault → Agent
+export interface ServerWelcome {
+  type: 'server.welcome';
+  agent_id: string;
+  name: string;
+}
+
+export interface ServerMessage {
+  type: 'server.message';
+  request_id: string;
+  conversation_id: string;
+  content: string;
+}
+
+export type ServerAgentEvent = ServerWelcome | ServerMessage;

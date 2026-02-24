@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
+import { authHeaders } from './authStore';
 
 interface Message {
   id: string;
@@ -67,7 +68,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   searchQuery: '',
 
   setConversations: (conversations) => set({ conversations }),
-  selectConversation: (id) => set({ selectedConversationId: id }),
+  selectConversation: (id) => set({ selectedConversationId: id, messages: id ? get().messages : [] }),
   setMessages: (messages) => set({ messages }),
   addMessage: (message) => set((s) => ({ messages: [...s.messages, message] })),
   updateMessage: (id, updates) =>
@@ -85,7 +86,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   fetchConversations: async (agentId) => {
     set({ loading: true });
     try {
-      const res = await fetch(`/api/agents/${agentId}/conversations`);
+      const res = await fetch(`/api/agents/${agentId}/conversations`, { headers: authHeaders() });
       const conversations = await res.json();
       set({ conversations, loading: false });
     } catch {
@@ -96,7 +97,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   fetchMessages: async (conversationId) => {
     set({ loading: true });
     try {
-      const res = await fetch(`/api/conversations/${conversationId}/messages`);
+      const res = await fetch(`/api/conversations/${conversationId}/messages`, { headers: authHeaders() });
       const { data } = await res.json();
       set({ messages: data, loading: false });
     } catch {
@@ -107,7 +108,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   createConversation: async (agentId, title) => {
     const res = await fetch(`/api/agents/${agentId}/conversations`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ title }),
     });
     const conversation = await res.json();
@@ -117,7 +118,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   deleteConversation: async (id) => {
     try {
-      await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
+      await fetch(`/api/conversations/${id}`, { method: 'DELETE', headers: authHeaders() });
       const wasSelected = get().selectedConversationId === id;
       set((s) => ({
         conversations: s.conversations.filter((c) => c.id !== id),
@@ -134,7 +135,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     try {
       const res = await fetch(`/api/conversations/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ title }),
       });
       const updated = await res.json();
@@ -153,7 +154,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return;
     }
     try {
-      const res = await fetch(`/api/agents/${agentId}/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/agents/${agentId}/search?q=${encodeURIComponent(query)}`, { headers: authHeaders() });
       const results = await res.json();
       set({ searchResults: results });
     } catch {

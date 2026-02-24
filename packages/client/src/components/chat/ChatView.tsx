@@ -47,6 +47,18 @@ export function ChatView({ sendMessage }: Props) {
   }
 
   const isRunning = agent?.status === 'running';
+  const isExternal = agent?.connection_type === 'external';
+
+  const getPlaceholder = () => {
+    if (!isRunning) {
+      if (isExternal) {
+        return `${agent?.name || 'Agent'} is offline — start the external process to connect`;
+      }
+      return `Start ${agent?.name || 'agent'} to send messages`;
+    }
+    if (streaming) return 'Waiting for response...';
+    return 'Type a message...';
+  };
 
   return (
     <div className="chat-view">
@@ -60,13 +72,7 @@ export function ChatView({ sendMessage }: Props) {
       <InputBar
         onSend={handleSend}
         disabled={streaming || !isRunning}
-        placeholder={
-          !isRunning
-            ? `Start ${agent?.name || 'agent'} to send messages`
-            : streaming
-              ? 'Waiting for response...'
-              : 'Type a message...'
-        }
+        placeholder={getPlaceholder()}
       />
     </div>
   );

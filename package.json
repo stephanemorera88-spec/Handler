@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/shared",
     "packages/server",
-    "packages/client"
+    "packages/client",
+    "packages/agent-sdk"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w packages/server\" \"npm run dev -w packages/client\"",

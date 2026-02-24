@@ -11,11 +11,15 @@ export interface ClaudeUsage {
   duration_ms: number;
 }
 
+// Default timeout: 5 minutes
+const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
+
 interface ClaudeCodeOptions {
   prompt: string;
   systemPrompt?: string;
   model?: string;
   maxBudgetUsd?: number;
+  timeoutMs?: number;
   onChunk?: (text: string) => void;
   onUsage?: (usage: ClaudeUsage) => void;
 }
@@ -25,7 +29,7 @@ interface ClaudeCodeOptions {
  * Uses stream-json format to get both streaming text and token usage.
  */
 export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
-  const { prompt, systemPrompt, model, maxBudgetUsd, onChunk, onUsage } = options;
+  const { prompt, systemPrompt, model, maxBudgetUsd, timeoutMs = DEFAULT_TIMEOUT_MS, onChunk, onUsage } = options;
 
   return new Promise((resolve, reject) => {
     const args = [
@@ -62,6 +66,17 @@ export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
     let fullText = '';
     let error = '';
     let buffer = '';
+    let timedOut = false;
+
+    // Kill the process if it exceeds the timeout
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      proc.kill('SIGTERM');
+      // Force kill after 5 seconds if SIGTERM doesn't work
+      setTimeout(() => {
+        if (!proc.killed) proc.kill('SIGKILL');
+      }, 5000);
+    }, timeoutMs);
 
     proc.stdout!.on('data', (data: Buffer) => {
       buffer += data.toString();
@@ -129,6 +144,8 @@ export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
     });
 
     proc.on('close', (code) => {
+      clearTimeout(timeout);
+
       // Process any remaining buffer
       if (buffer.trim()) {
         try {
@@ -136,7 +153,10 @@ export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
         } catch { /* ignore */ }
       }
 
-      if (code === 0) {
+      if (timedOut) {
+        logger.error('Claude CLI timed out after %dms', timeoutMs);
+        reject(new Error(`Claude CLI timed out after ${Math.round(timeoutMs / 1000)}s. The request may have been too large or the API may be unresponsive.`));
+      } else if (code === 0) {
         resolve(fullText);
       } else {
         logger.error('Claude CLI error (code %s): %s', String(code), error);
@@ -145,6 +165,7 @@ export async function claudeCode(options: ClaudeCodeOptions): Promise<string> {
     });
 
     proc.on('error', (err) => {
+      clearTimeout(timeout);
       reject(new Error(`Failed to spawn Claude CLI: ${err.message}`));
     });
   });

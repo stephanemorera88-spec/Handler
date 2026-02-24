@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 import type {
   Agent,
   AgentStatus,
+  AgentConnectionType,
   AgentPermissions,
   AgentConfig,
   Conversation,
@@ -115,6 +116,17 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status);
     CREATE INDEX IF NOT EXISTS idx_token_usage_agent ON token_usage(agent_id);
   `);
+
+  // Migration: add external agent columns if they don't exist
+  const cols = d.prepare("PRAGMA table_info(agents)").all() as { name: string }[];
+  const colNames = cols.map((c) => c.name);
+  if (!colNames.includes('connection_type')) {
+    d.exec(`ALTER TABLE agents ADD COLUMN connection_type TEXT NOT NULL DEFAULT 'builtin'`);
+  }
+  if (!colNames.includes('auth_token')) {
+    d.exec(`ALTER TABLE agents ADD COLUMN auth_token TEXT`);
+    d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_auth_token ON agents(auth_token) WHERE auth_token IS NOT NULL`);
+  }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -130,6 +142,8 @@ function parseJson<T>(raw: string, fallback: T): T {
 function rowToAgent(row: any): Agent {
   return {
     ...row,
+    connection_type: row.connection_type || 'builtin',
+    auth_token: row.auth_token || null,
     permissions: parseJson<AgentPermissions>(row.permissions, {
       network: false,
       filesystem: 'none',
@@ -230,6 +244,29 @@ export function updateAgentStatus(id: string, status: AgentStatus, containerId?:
   `).run(status, containerId ?? null, id);
 }
 
+export function getAgentByToken(token: string): Agent | null {
+  const row = getDb().prepare('SELECT * FROM agents WHERE auth_token = ?').get(token);
+  return row ? rowToAgent(row) : null;
+}
+
+export function createExternalAgent(name: string, description: string, authToken: string): Agent {
+  const id = uuid();
+  const permissions = { ...DEFAULT_PERMISSIONS };
+
+  getDb().prepare(`
+    INSERT INTO agents (id, name, description, provider, model, system_prompt, permissions, config, connection_type, auth_token)
+    VALUES (?, ?, ?, 'external', '', '', ?, '{}', 'external', ?)
+  `).run(id, name, description, JSON.stringify(permissions), authToken);
+
+  return getAgent(id)!;
+}
+
+export function updateAgentToken(id: string, token: string): void {
+  getDb().prepare(`
+    UPDATE agents SET auth_token = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(token, id);
+}
+
 // ─── Conversations ───────────────────────────────────────────────────
 
 export function listConversations(agentId: string): Conversation[] {
@@ -315,8 +352,21 @@ export function createMessage(
   return rowToMessage(getDb().prepare('SELECT * FROM messages WHERE id = ?').get(id));
 }
 
+export function getMessageById(id: string): Message | null {
+  const row = getDb().prepare('SELECT * FROM messages WHERE id = ?').get(id);
+  return row ? rowToMessage(row) : null;
+}
+
 export function updateMessageContent(id: string, content: string): void {
   getDb().prepare('UPDATE messages SET content = ? WHERE id = ?').run(content, id);
+}
+
+export function appendMessageContent(id: string, chunk: string): void {
+  getDb().prepare('UPDATE messages SET content = content || ? WHERE id = ?').run(chunk, id);
+}
+
+export function deleteMessage(id: string): void {
+  getDb().prepare('DELETE FROM messages WHERE id = ?').run(id);
 }
 
 // ─── Activity Logs ───────────────────────────────────────────────────
