@@ -1,6 +1,6 @@
 {
-  "name": "Vault — AI Agent Messaging",
-  "short_name": "Vault",
+  "name": "Handler — AI Agent Messaging",
+  "short_name": "Handler",
   "description": "Chat with your AI agents anywhere",
   "start_url": "/",
   "display": "standalone",
@@ -9,12 +9,12 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/vault-192.png",
+      "src": "/handler-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/vault-512.png",
+      "src": "/handler-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }

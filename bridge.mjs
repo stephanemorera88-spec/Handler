@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Vault ↔ OpenClaw Bridge
+ * Handler ↔ OpenClaw Bridge
  *
  * Runs on the OpenClaw machine. Connects to:
- *   - Vault agent WS on 192.168.1.75:3001/ws/agent
+ *   - Handler agent WS on 192.168.1.75:3001/ws/agent
  *   - OpenClaw via CLI (openclaw agent --message)
  *
  * Usage: node bridge.mjs
@@ -13,16 +13,16 @@ import WebSocket from 'ws';
 import { spawn, execSync } from 'child_process';
 
 // ─── Config ─────────────────────────────────────────────────────────
-const VAULT_URL = 'ws://192.168.1.75:3001/ws/agent';
-const VAULT_TOKEN = 'vlt_cef6d02d569ffded94f1861b3a48c85e93aac42a2833d41a';
+const HANDLER_URL = 'ws://192.168.1.75:3001/ws/agent';
+const HANDLER_TOKEN = 'vlt_cef6d02d569ffded94f1861b3a48c85e93aac42a2833d41a';
 const AGENT_NAME = 'OpenClaw';
 // Use full path since openclaw may not be in PATH
 const OPENCLAW_BIN = process.env.OPENCLAW_BIN || 'openclaw';
-const SYSTEM_CONTEXT = `You are connected to Vault, a mobile messaging app for AI agents built by Stephane Morera. The user is messaging you through the Vault app on their phone. You are NOT on Telegram right now — this is Vault. Respond naturally and helpfully.`;
+const SYSTEM_CONTEXT = `You are connected to Handler, a mobile messaging app for AI agents built by Stephane Morera. The user is messaging you through the Handler app on their phone. You are NOT on Telegram right now — this is Handler. Respond naturally and helpfully.`;
 
 // ─── State ──────────────────────────────────────────────────────────
-let vaultWs = null;
-let vaultReady = false;
+let handlerWs = null;
+let handlerReady = false;
 
 function log(source, msg) {
   const ts = new Date().toLocaleTimeString();
@@ -40,7 +40,7 @@ function sendToClaw(content, requestId) {
   const preArgs = binParts.slice(1);
 
   const fullMessage = `[System: ${SYSTEM_CONTEXT}]\n\nUser message: ${content}`;
-  const args = [...preArgs, 'agent', '--local', '--session-id', 'vault', '--message', fullMessage];
+  const args = [...preArgs, 'agent', '--local', '--session-id', 'handler', '--message', fullMessage];
   log('claw', `Spawning: ${cmd} ${args.map(a => a.length > 40 ? a.substring(0, 40) + '...' : a).join(' ')}`);
 
   const proc = spawn(cmd, args, {
@@ -57,9 +57,9 @@ function sendToClaw(content, requestId) {
     stdoutData += text;
     log('claw:stdout', JSON.stringify(text).substring(0, 200));
 
-    if (text.trim() && vaultReady) {
+    if (text.trim() && handlerReady) {
       sentAnyContent = true;
-      vaultWs.send(JSON.stringify({
+      handlerWs.send(JSON.stringify({
         type: 'agent.response.chunk',
         request_id: requestId,
         content: text,
@@ -74,9 +74,9 @@ function sendToClaw(content, requestId) {
     log('claw:stderr', JSON.stringify(text).substring(0, 200));
 
     // Some CLI tools output the actual response on stderr
-    if (text.trim() && vaultReady) {
+    if (text.trim() && handlerReady) {
       sentAnyContent = true;
-      vaultWs.send(JSON.stringify({
+      handlerWs.send(JSON.stringify({
         type: 'agent.response.chunk',
         request_id: requestId,
         content: text,
@@ -93,8 +93,8 @@ function sendToClaw(content, requestId) {
     if (!sentAnyContent && (stdoutData.trim() || stderrData.trim())) {
       // Send whatever we got
       const response = stdoutData.trim() || stderrData.trim();
-      if (vaultReady) {
-        vaultWs.send(JSON.stringify({
+      if (handlerReady) {
+        handlerWs.send(JSON.stringify({
           type: 'agent.response.chunk',
           request_id: requestId,
           content: response,
@@ -105,8 +105,8 @@ function sendToClaw(content, requestId) {
 
     if (!sentAnyContent && !stdoutData.trim() && !stderrData.trim()) {
       log('claw', 'WARNING: No output from openclaw agent!');
-      if (vaultReady) {
-        vaultWs.send(JSON.stringify({
+      if (handlerReady) {
+        handlerWs.send(JSON.stringify({
           type: 'agent.response.chunk',
           request_id: requestId,
           content: '(No response from OpenClaw — the agent may need configuration)',
@@ -116,8 +116,8 @@ function sendToClaw(content, requestId) {
     }
 
     // Signal done
-    if (vaultReady) {
-      vaultWs.send(JSON.stringify({
+    if (handlerReady) {
+      handlerWs.send(JSON.stringify({
         type: 'agent.response.chunk',
         request_id: requestId,
         content: '',
@@ -128,8 +128,8 @@ function sendToClaw(content, requestId) {
 
   proc.on('error', (err) => {
     log('claw', `Process error: ${err.message}`);
-    if (vaultReady) {
-      vaultWs.send(JSON.stringify({
+    if (handlerReady) {
+      handlerWs.send(JSON.stringify({
         type: 'agent.error',
         request_id: requestId,
         message: `OpenClaw CLI error: ${err.message}`,
@@ -138,48 +138,48 @@ function sendToClaw(content, requestId) {
   });
 }
 
-// ─── Vault Connection ───────────────────────────────────────────────
-function connectVault() {
-  log('vault', `Connecting to ${VAULT_URL}...`);
-  vaultWs = new WebSocket(VAULT_URL);
+// ─── Handler Connection ─────────────────────────────────────────────
+function connectHandler() {
+  log('handler', `Connecting to ${HANDLER_URL}...`);
+  handlerWs = new WebSocket(HANDLER_URL);
 
-  vaultWs.on('open', () => {
-    log('vault', 'Connected, sending hello...');
-    vaultWs.send(JSON.stringify({
+  handlerWs.on('open', () => {
+    log('handler', 'Connected, sending hello...');
+    handlerWs.send(JSON.stringify({
       type: 'agent.hello',
-      token: VAULT_TOKEN,
+      token: HANDLER_TOKEN,
       name: AGENT_NAME,
       description: 'OpenClaw agent bridge',
     }));
   });
 
-  vaultWs.on('message', (raw) => {
+  handlerWs.on('message', (raw) => {
     const msg = JSON.parse(raw.toString());
 
     if (msg.type === 'server.welcome') {
-      vaultReady = true;
-      log('vault', `Registered as "${msg.name}" (${msg.agent_id})`);
-      log('bridge', '--- BRIDGE ACTIVE --- Send a message in Vault!');
+      handlerReady = true;
+      log('handler', `Registered as "${msg.name}" (${msg.agent_id})`);
+      log('bridge', '--- BRIDGE ACTIVE --- Send a message in Handler!');
       return;
     }
 
     if (msg.type === 'server.message') {
-      log('bridge', `Message from Vault: "${msg.content.substring(0, 80)}"`);
+      log('bridge', `Message from Handler: "${msg.content.substring(0, 80)}"`);
       sendToClaw(msg.content, msg.request_id);
       return;
     }
   });
 
-  vaultWs.on('ping', () => vaultWs.pong());
+  handlerWs.on('ping', () => handlerWs.pong());
 
-  vaultWs.on('close', () => {
-    vaultReady = false;
-    log('vault', 'Disconnected. Reconnecting in 3s...');
-    setTimeout(connectVault, 3000);
+  handlerWs.on('close', () => {
+    handlerReady = false;
+    log('handler', 'Disconnected. Reconnecting in 3s...');
+    setTimeout(connectHandler, 3000);
   });
 
-  vaultWs.on('error', (err) => {
-    log('vault', `Error: ${err.message}`);
+  handlerWs.on('error', (err) => {
+    log('handler', `Error: ${err.message}`);
   });
 }
 
@@ -195,5 +195,5 @@ try {
 }
 
 // ─── Start ──────────────────────────────────────────────────────────
-log('bridge', 'Vault <-> OpenClaw Bridge starting (CLI mode with debug)...');
-connectVault();
+log('bridge', 'Handler <-> OpenClaw Bridge starting (CLI mode with debug)...');
+connectHandler();

@@ -79,9 +79,9 @@ export type ServerEvent =
   | WsTokenUsage
   | WsError;
 
-// ─── Agent Protocol (External Agent ↔ Vault Server) ─────────────────
+// ─── Agent Protocol (External Agent ↔ Handler Server) ────────────────
 
-// Agent → Vault
+// Agent → Handler
 export interface AgentHello {
   type: 'agent.hello';
   token: string;
@@ -104,7 +104,7 @@ export interface AgentError {
 
 export type AgentEvent = AgentHello | AgentResponseChunk | AgentError;
 
-// Vault → Agent
+// Handler → Agent
 export interface ServerWelcome {
   type: 'server.welcome';
   agent_id: string;

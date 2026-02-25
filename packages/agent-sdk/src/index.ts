@@ -3,10 +3,10 @@ import { EventEmitter } from 'events';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export interface VaultAgentOptions {
+export interface HandlerAgentOptions {
   /** WebSocket URL, e.g. ws://192.168.1.75:3001/ws/agent */
   url: string;
-  /** Auth token from Vault */
+  /** Auth token from Handler */
   token: string;
   /** Agent display name */
   name: string;
@@ -49,17 +49,17 @@ interface ServerMessage {
 
 type ServerEvent = ServerWelcome | ServerMessage;
 
-// ─── VaultAgent ─────────────────────────────────────────────────────
+// ─── HandlerAgent ─────────────────────────────────────────────────────
 
-export class VaultAgent extends EventEmitter {
+export class HandlerAgent extends EventEmitter {
   private ws: WebSocket | null = null;
-  private options: Required<VaultAgentOptions>;
+  private options: Required<HandlerAgentOptions>;
   private agentId: string | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionalClose = false;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(opts: VaultAgentOptions) {
+  constructor(opts: HandlerAgentOptions) {
     super();
     this.options = {
       description: '',
@@ -69,7 +69,7 @@ export class VaultAgent extends EventEmitter {
     };
   }
 
-  /** Connect to the Vault server */
+  /** Connect to the Handler server */
   connect(): void {
     this.intentionalClose = false;
 
@@ -116,7 +116,7 @@ export class VaultAgent extends EventEmitter {
     });
   }
 
-  /** Disconnect from the Vault server */
+  /** Disconnect from the Handler server */
   disconnect(): void {
     this.intentionalClose = true;
     if (this.reconnectTimer) {
@@ -135,7 +135,7 @@ export class VaultAgent extends EventEmitter {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  /** The agent ID assigned by Vault after authentication */
+  /** The agent ID assigned by Handler after authentication */
   get id(): string | null {
     return this.agentId;
   }
@@ -202,4 +202,4 @@ export class VaultAgent extends EventEmitter {
 }
 
 // Re-export for convenience
-export default VaultAgent;
+export default HandlerAgent;

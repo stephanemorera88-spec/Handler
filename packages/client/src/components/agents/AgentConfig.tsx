@@ -145,9 +145,9 @@ export function AgentConfig({ onClose, editAgent }: Props) {
                 overflow: 'auto',
                 whiteSpace: 'pre-wrap',
               }}>
-{`import { VaultAgent } from '@vault/agent-sdk';
+{`import { HandlerAgent } from '@handler/agent-sdk';
 
-const agent = new VaultAgent({
+const agent = new HandlerAgent({
   url: 'ws://${window.location.hostname}:3001/ws/agent',
   token: '${createdToken}',
   name: '${name.trim()}',

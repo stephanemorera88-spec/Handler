@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
-import type { ClientEvent, ServerEvent } from '@vault/shared';
+import type { ClientEvent, ServerEvent } from '@handler/shared';
 import * as db from '../db';
 import { getRuntime } from '../agent/runtime';
 import { logger } from '../logger';

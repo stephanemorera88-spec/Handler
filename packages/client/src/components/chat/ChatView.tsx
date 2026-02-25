@@ -39,7 +39,7 @@ export function ChatView({ sendMessage }: Props) {
       <div className="chat-empty">
         <div className="chat-empty-content">
           <div className="chat-empty-icon">V</div>
-          <h2>Welcome to Vault</h2>
+          <h2>Welcome to Handler</h2>
           <p>Select an agent from the sidebar or create a new one to get started.</p>
         </div>
       </div>

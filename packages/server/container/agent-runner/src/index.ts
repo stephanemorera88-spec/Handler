@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
-const OUTPUT_START_MARKER = '---VAULT_OUTPUT_START---';
-const OUTPUT_END_MARKER = '---VAULT_OUTPUT_END---';
+const OUTPUT_START_MARKER = '---HANDLER_OUTPUT_START---';
+const OUTPUT_END_MARKER = '---HANDLER_OUTPUT_END---';
 const IPC_INPUT_DIR = '/workspace/ipc/input';
 const IPC_POLL_INTERVAL = 500;
 
@@ -97,7 +97,7 @@ async function main() {
     delete input.secrets; // Clear from memory
   }
 
-  console.error(`[vault-agent] Agent "${input.agent_name}" starting (model: ${input.model})`);
+  console.error(`[handler-agent] Agent "${input.agent_name}" starting (model: ${input.model})`);
 
   // Import Claude Code SDK dynamically
   const { query } = await import('@anthropic-ai/claude-code');
@@ -112,11 +112,11 @@ async function main() {
     const message = await waitForIpcMessage();
     if (message === null) {
       // Close sentinel received
-      console.error('[vault-agent] Close sentinel received, shutting down');
+      console.error('[handler-agent] Close sentinel received, shutting down');
       break;
     }
 
-    console.error(`[vault-agent] Processing message: ${message.substring(0, 100)}`);
+    console.error(`[handler-agent] Processing message: ${message.substring(0, 100)}`);
 
     try {
       let result = '';
@@ -154,7 +154,7 @@ async function main() {
         agent_id: input.agent_id,
       });
     } catch (err: any) {
-      console.error(`[vault-agent] Error: ${err.message}`);
+      console.error(`[handler-agent] Error: ${err.message}`);
       writeOutput({
         status: 'error',
         error: err.message,
@@ -168,7 +168,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`[vault-agent] Fatal error: ${err.message}`);
+  console.error(`[handler-agent] Fatal error: ${err.message}`);
   writeOutput({ status: 'error', error: err.message });
   process.exit(1);
 });

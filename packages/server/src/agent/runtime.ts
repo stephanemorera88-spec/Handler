@@ -2,14 +2,14 @@ import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuid } from 'uuid';
-import type { Agent, Conversation } from '@vault/shared';
+import type { Agent, Conversation } from '@handler/shared';
 import * as db from '../db';
 import { broadcast } from '../ws/handler';
 import { sendToAgent, disconnectAgent } from '../ws/agent-handler';
 import { logger } from '../logger';
 
-const OUTPUT_START_MARKER = '---VAULT_OUTPUT_START---';
-const OUTPUT_END_MARKER = '---VAULT_OUTPUT_END---';
+const OUTPUT_START_MARKER = '---HANDLER_OUTPUT_START---';
+const OUTPUT_END_MARKER = '---HANDLER_OUTPUT_END---';
 
 // Track which agents are "running" (in direct mode, just a flag)
 const runningAgents = new Set<string>();
@@ -39,8 +39,8 @@ function isDockerAvailable(): boolean {
   try {
     const { execSync } = require('child_process');
     execSync('docker info', { stdio: 'ignore', timeout: 3000 });
-    // Also check if vault-agent image exists
-    const result = execSync('docker images -q vault-agent:latest', { encoding: 'utf8', timeout: 3000 });
+    // Also check if handler-agent image exists
+    const result = execSync('docker images -q handler-agent:latest', { encoding: 'utf8', timeout: 3000 });
     return result.trim().length > 0;
   } catch {
     return false;
@@ -315,7 +315,7 @@ export class AgentRuntime {
   // ─── Docker Container Mode ───────────────────────────────────────
 
   private async startContainer(agent: Agent): Promise<void> {
-    const containerName = `vault-agent-${agent.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
+    const containerName = `handler-agent-${agent.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
     const ipcDir = path.join(this.dataDir, 'ipc', agent.id);
     const workspaceDir = path.join(this.dataDir, 'workspaces', agent.id);
 
@@ -334,7 +334,7 @@ export class AgentRuntime {
         '--memory', '512m', '--cpus', '1',
         ...(agent.permissions.network ? [] : ['--network', 'none']),
         '--user', 'node',
-        'vault-agent:latest',
+        'handler-agent:latest',
       ];
 
       const proc = spawn('docker', args, { stdio: ['pipe', 'pipe', 'pipe'] });

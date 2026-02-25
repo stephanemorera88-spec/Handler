@@ -73,9 +73,9 @@ npm start -w packages/server
 Drop in the SDK and connect any agent in minutes:
 
 ```typescript
-import { VaultAgent } from '@handler/agent-sdk';
+import { HandlerAgent } from '@handler/agent-sdk';
 
-const agent = new VaultAgent({
+const agent = new HandlerAgent({
   url: 'ws://localhost:3001/ws/agent',
   token: 'your-agent-token',
   name: 'MyAgent',

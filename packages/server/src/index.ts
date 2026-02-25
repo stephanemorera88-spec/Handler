@@ -63,5 +63,5 @@ logger.info('WebSocket server ready (client + agent)');
 
 // Start
 server.listen(PORT, '0.0.0.0', () => {
-  logger.info('Vault server running on http://0.0.0.0:%d', PORT);
+  logger.info('Handler server running on http://0.0.0.0:%d', PORT);
 });

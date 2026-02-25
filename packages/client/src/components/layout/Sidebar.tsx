@@ -82,7 +82,7 @@ export function Sidebar() {
   return (
     <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
-        <h1 className="logo">Vault</h1>
+        <h1 className="logo">Handler</h1>
         <button className="btn btn-sm" onClick={() => { setEditingAgent(null); setShowConfig(true); }}>
           + Agent
         </button>

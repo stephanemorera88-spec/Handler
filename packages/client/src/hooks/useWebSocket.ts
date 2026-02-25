@@ -108,7 +108,7 @@ export function useWebSocket() {
 
       case 'error': {
         const msg = (event as any).message || 'Unknown error';
-        console.error('[vault] Server error:', msg);
+        console.error('[handler] Server error:', msg);
         useChatStore.getState().setStreaming(false);
         toast.error(msg);
         break;
@@ -132,7 +132,7 @@ export function useWebSocket() {
     globalWs = ws;
 
     ws.onopen = () => {
-      console.log('[vault] WebSocket connected');
+      console.log('[handler] WebSocket connected');
     };
 
     ws.onmessage = (event) => {
@@ -140,12 +140,12 @@ export function useWebSocket() {
         const data: ServerEvent = JSON.parse(event.data);
         handleEvent(data);
       } catch {
-        console.error('[vault] Failed to parse WS message');
+        console.error('[handler] Failed to parse WS message');
       }
     };
 
     ws.onclose = () => {
-      console.log('[vault] WebSocket disconnected, reconnecting...');
+      console.log('[handler] WebSocket disconnected, reconnecting...');
       globalWs = null;
       globalReconnectTimeout = setTimeout(connect, 2000);
     };

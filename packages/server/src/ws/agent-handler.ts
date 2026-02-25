@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
-import type { AgentEvent, ServerAgentEvent } from '@vault/shared';
+import type { AgentEvent, ServerAgentEvent } from '@handler/shared';
 import * as db from '../db';
 import { broadcast } from './handler';
 import { logger } from '../logger';

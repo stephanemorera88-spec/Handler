@@ -23,7 +23,7 @@ export function Header() {
       <div className="header">
         <div className="header-left">
           <button className="menu-btn" onClick={toggleSidebar}>&#9776;</button>
-          <div className="header-title">Vault</div>
+          <div className="header-title">Handler</div>
         </div>
       </div>
     );

@@ -20,9 +20,9 @@ import type {
   TokenUsage,
   UsageSummary,
   CreateAgentInput,
-} from '@vault/shared';
+} from '@handler/shared';
 
-const DB_PATH = path.join(process.cwd(), 'data', 'vault.db');
+const DB_PATH = path.join(process.cwd(), 'data', 'handler.db');
 
 let db: Database.Database;
 
