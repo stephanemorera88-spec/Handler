@@ -56,7 +56,11 @@ export default function App() {
           error: { iconTheme: { primary: '#f87171', secondary: '#1e1e1e' }, duration: 5000 },
         }}
       />
-      {checking ? null : token ? <AuthenticatedApp /> : <LoginScreen />}
+      {checking ? (
+        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+          <div className="spinner" />
+        </div>
+      ) : token ? <AuthenticatedApp /> : <LoginScreen />}
     </>
   );
 }

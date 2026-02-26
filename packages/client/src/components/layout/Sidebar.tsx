@@ -15,6 +15,7 @@ export function Sidebar() {
   const { agents, selectedAgentId, fetchAgents, selectAgent } = useAgentStore();
   const {
     fetchConversations, conversations, selectConversation,
+    selectedConversationId,
     createConversation, deleteConversation, searchMessages,
     searchResults, clearSearch,
   } = useChatStore();
@@ -147,7 +148,7 @@ export function Sidebar() {
                 <div
                   key={conv.id}
                   className={`conversation-item ${
-                    useChatStore.getState().selectedConversationId === conv.id ? 'active' : ''
+                    selectedConversationId === conv.id ? 'active' : ''
                   }`}
                   onClick={() => handleSelectConversation(conv.id)}
                   onContextMenu={(e) => handleLongPress(conv.id, e)}

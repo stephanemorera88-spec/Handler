@@ -26,7 +26,7 @@ export function LoginScreen() {
             autoFocus
             style={styles.input}
           />
-          <button type="submit" disabled={loading} style={styles.button}>
+          <button type="submit" disabled={loading} style={{ ...styles.button, ...(loading ? styles.buttonDisabled : {}) }}>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
@@ -104,6 +104,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '12px',
     color: 'var(--text-muted)',
     lineHeight: 1.5,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+    cursor: 'not-allowed',
   },
   code: {
     background: 'var(--bg-tertiary)',

@@ -24,9 +24,13 @@ export function ChatView({ sendMessage }: Props) {
 
     // Auto-create conversation if none selected
     if (!convId && selectedAgentId) {
-      const conv = await createConversation(selectedAgentId, content.substring(0, 50));
-      selectConversation(conv.id);
-      convId = conv.id;
+      try {
+        const conv = await createConversation(selectedAgentId, content.substring(0, 50));
+        selectConversation(conv.id);
+        convId = conv.id;
+      } catch {
+        return;
+      }
     }
 
     if (convId) {
@@ -38,7 +42,7 @@ export function ChatView({ sendMessage }: Props) {
     return (
       <div className="chat-empty">
         <div className="chat-empty-content">
-          <div className="chat-empty-icon">V</div>
+          <div className="chat-empty-icon">H</div>
           <h2>Welcome to Handler</h2>
           <p>Select an agent from the sidebar or create a new one to get started.</p>
         </div>

@@ -4,6 +4,7 @@ import { useAgentStore } from '../stores/agentStore';
 import { useChatStore } from '../stores/chatStore';
 import { useActivityStore } from '../stores/activityStore';
 import { useAuthStore } from '../stores/authStore';
+import { useUIStore } from '../stores/uiStore';
 
 type ServerEvent = {
   type: string;
@@ -133,6 +134,7 @@ export function useWebSocket() {
 
     ws.onopen = () => {
       console.log('[handler] WebSocket connected');
+      useUIStore.getState().setConnected(true);
     };
 
     ws.onmessage = (event) => {
@@ -147,6 +149,7 @@ export function useWebSocket() {
     ws.onclose = () => {
       console.log('[handler] WebSocket disconnected, reconnecting...');
       globalWs = null;
+      useUIStore.getState().setConnected(false);
       globalReconnectTimeout = setTimeout(connect, 2000);
     };
 
@@ -162,6 +165,11 @@ export function useWebSocket() {
   }, []);
 
   const sendMessage = useCallback((conversationId: string, content: string) => {
+    if (globalWs?.readyState !== WebSocket.OPEN) {
+      toast.error('Not connected — message not sent');
+      return;
+    }
+
     useChatStore.getState().addMessage({
       id: `temp-${Date.now()}`,
       conversation_id: conversationId,

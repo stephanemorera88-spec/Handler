@@ -7,7 +7,7 @@ import { KillSwitch } from '../controls/KillSwitch';
 
 export function Header() {
   const { agents, selectedAgentId } = useAgentStore();
-  const { toggleSidebar } = useUIStore();
+  const { toggleSidebar, connected } = useUIStore();
   const { usageSummaries, fetchUsage } = useActivityStore();
   const agent = agents.find((a) => a.id === selectedAgentId);
   const usage = selectedAgentId ? usageSummaries[selectedAgentId] : null;
@@ -24,6 +24,7 @@ export function Header() {
         <div className="header-left">
           <button className="menu-btn" onClick={toggleSidebar}>&#9776;</button>
           <div className="header-title">Handler</div>
+          <span className={`connection-dot ${connected ? 'online' : 'offline'}`} title={connected ? 'Connected' : 'Reconnecting...'} />
         </div>
       </div>
     );
@@ -34,6 +35,7 @@ export function Header() {
       <div className="header-left">
         <button className="menu-btn" onClick={toggleSidebar}>&#9776;</button>
         <h2 className="header-title">{agent.name}</h2>
+        <span className={`connection-dot ${connected ? 'online' : 'offline'}`} title={connected ? 'Connected' : 'Reconnecting...'} />
         <StatusBadge status={agent.status} />
         <span className="header-model">{agent.model}</span>
       </div>

@@ -46,7 +46,7 @@ interface AgentStore {
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
   agents: [],
-  selectedAgentId: null,
+  selectedAgentId: localStorage.getItem('handler_selected_agent') || null,
   loading: false,
 
   setAgents: (agents) => set({ agents }),
@@ -60,7 +60,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       agents: s.agents.filter((a) => a.id !== id),
       selectedAgentId: s.selectedAgentId === id ? null : s.selectedAgentId,
     })),
-  selectAgent: (id) => set({ selectedAgentId: id }),
+  selectAgent: (id) => {
+    if (id) localStorage.setItem('handler_selected_agent', id);
+    else localStorage.removeItem('handler_selected_agent');
+    set({ selectedAgentId: id });
+  },
   setLoading: (loading) => set({ loading }),
 
   fetchAgents: async () => {

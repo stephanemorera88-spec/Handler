@@ -399,6 +399,28 @@ body {
   white-space: nowrap;
 }
 
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.connection-dot.online {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
+.connection-dot.offline {
+  background: var(--danger);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
 .header-model {
   font-size: 11px;
   color: var(--text-muted);
@@ -582,16 +604,34 @@ body {
   text-decoration: underline;
 }
 
+.message-time {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  opacity: 0.7;
+}
+
+.message-bubble.user .message-time {
+  color: rgba(255, 255, 255, 0.5);
+  text-align: right;
+}
+
+.typing-bubble {
+  padding: 12px 16px !important;
+  min-height: auto;
+}
+
 .typing-indicator {
   display: inline-flex;
-  gap: 4px;
+  gap: 5px;
   padding: 4px 0;
   align-items: center;
 }
 
 .typing-indicator .dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   background: var(--accent);
   border-radius: 50%;
   animation: typing-bounce 1.4s infinite ease-in-out both;
@@ -602,8 +642,8 @@ body {
 .typing-indicator .dot:nth-child(3) { animation-delay: 0s; }
 
 @keyframes typing-bounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
+  0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; }
+  40% { transform: scale(1.1); opacity: 1; }
 }
 
 .chat-loading {

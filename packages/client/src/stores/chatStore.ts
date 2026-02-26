@@ -60,7 +60,7 @@ interface ChatStore {
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   conversations: [],
-  selectedConversationId: null,
+  selectedConversationId: localStorage.getItem('handler_selected_conv') || null,
   messages: [],
   loading: false,
   streaming: false,
@@ -68,7 +68,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   searchQuery: '',
 
   setConversations: (conversations) => set({ conversations }),
-  selectConversation: (id) => set({ selectedConversationId: id, messages: id ? get().messages : [] }),
+  selectConversation: (id) => {
+    if (id) localStorage.setItem('handler_selected_conv', id);
+    else localStorage.removeItem('handler_selected_conv');
+    set({ selectedConversationId: id, messages: id ? get().messages : [] });
+  },
   setMessages: (messages) => set({ messages }),
   addMessage: (message) => set((s) => ({ messages: [...s.messages, message] })),
   updateMessage: (id, updates) =>
@@ -87,6 +91,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({ loading: true });
     try {
       const res = await fetch(`/api/agents/${agentId}/conversations`, { headers: authHeaders() });
+      if (!res.ok) { set({ loading: false }); return; }
       const conversations = await res.json();
       set({ conversations, loading: false });
     } catch {
@@ -98,8 +103,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({ loading: true });
     try {
       const res = await fetch(`/api/conversations/${conversationId}/messages`, { headers: authHeaders() });
-      const { data } = await res.json();
-      set({ messages: data, loading: false });
+      if (!res.ok) { set({ loading: false }); return; }
+      const json = await res.json();
+      set({ messages: json.data || [], loading: false });
     } catch {
       set({ loading: false });
     }

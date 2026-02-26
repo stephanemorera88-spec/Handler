@@ -81,21 +81,30 @@ export const useActivityStore = create<ActivityStore>((set, get) => ({
   setPendingApprovals: (approvals) => set({ pendingApprovals: approvals }),
 
   fetchActivity: async (agentId) => {
-    const res = await fetch(`/api/agents/${agentId}/activity`, { headers: authHeaders() });
-    const data = await res.json();
-    set({ activities: data });
+    try {
+      const res = await fetch(`/api/agents/${agentId}/activity`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      set({ activities: data });
+    } catch { /* silent — non-critical */ }
   },
 
   fetchUsage: async (agentId) => {
-    const res = await fetch(`/api/agents/${agentId}/usage`, { headers: authHeaders() });
-    const summary = await res.json();
-    get().setUsageSummary(agentId, summary);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/usage`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const summary = await res.json();
+      get().setUsageSummary(agentId, summary);
+    } catch { /* silent — non-critical */ }
   },
 
   fetchApprovals: async () => {
-    const res = await fetch('/api/approvals?status=pending', { headers: authHeaders() });
-    const data = await res.json();
-    set({ pendingApprovals: data });
+    try {
+      const res = await fetch('/api/approvals?status=pending', { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      set({ pendingApprovals: data });
+    } catch { /* silent — non-critical */ }
   },
 
   resolveApproval: async (id, status) => {

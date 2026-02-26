@@ -61,6 +61,9 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       }
       return true;
     } catch {
+      // Network failure — clear stale token to avoid broken auth state
+      localStorage.removeItem(TOKEN_KEY);
+      set({ token: null });
       return false;
     }
   },
