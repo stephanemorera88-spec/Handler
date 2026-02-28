@@ -19,6 +19,30 @@ router.post('/agents/:id/conversations', (req: Request, res: Response) => {
   res.status(201).json(conversation);
 });
 
+// POST /api/conversations/group
+router.post('/conversations/group', (req: Request, res: Response) => {
+  const { agent_ids, title } = req.body;
+  if (!Array.isArray(agent_ids) || agent_ids.length < 2) {
+    return res.status(400).json({ error: 'Group chat requires at least 2 agents' });
+  }
+  // Verify all agents exist
+  for (const id of agent_ids) {
+    const agent = db.getAgent(id);
+    if (!agent) return res.status(404).json({ error: `Agent ${id} not found` });
+  }
+  const conversation = db.createGroupConversation(agent_ids, title);
+  res.status(201).json(conversation);
+});
+
+// GET /api/conversations/:id/agents
+router.get('/conversations/:id/agents', (req: Request, res: Response) => {
+  const conversation = db.getConversation(req.params.id as string);
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
+  const agentIds = db.getConversationAgents(conversation.id);
+  const agents = agentIds.map((id) => db.getAgent(id)).filter(Boolean);
+  res.json(agents);
+});
+
 // DELETE /api/conversations/:id
 router.delete('/conversations/:id', (req: Request, res: Response) => {
   const conversation = db.getConversation(req.params.id as string);

@@ -11,6 +11,8 @@ interface Message {
   metadata: Record<string, unknown>;
   created_at: string;
   streaming?: boolean;
+  agent_id?: string;
+  agent_name?: string;
 }
 
 interface Conversation {
@@ -19,6 +21,8 @@ interface Conversation {
   title: string;
   session_id: string | null;
   status: string;
+  is_group?: boolean;
+  agent_ids?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +42,7 @@ interface ChatStore {
   messages: Message[];
   loading: boolean;
   streaming: boolean;
+  streamingAgentIds: string[];
   searchResults: SearchResult[];
   searchQuery: string;
 
@@ -48,10 +53,13 @@ interface ChatStore {
   updateMessage: (id: string, updates: Partial<Message>) => void;
   appendToMessage: (id: string, content: string) => void;
   setStreaming: (streaming: boolean) => void;
+  addStreamingAgent: (agentId: string) => void;
+  removeStreamingAgent: (agentId: string) => void;
 
   fetchConversations: (agentId: string) => Promise<void>;
   fetchMessages: (conversationId: string) => Promise<void>;
   createConversation: (agentId: string, title?: string) => Promise<Conversation>;
+  createGroupConversation: (agentIds: string[], title?: string) => Promise<Conversation>;
   deleteConversation: (id: string) => Promise<void>;
   renameConversation: (id: string, title: string) => Promise<void>;
   searchMessages: (agentId: string, query: string) => Promise<void>;
@@ -64,6 +72,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
   loading: false,
   streaming: false,
+  streamingAgentIds: [],
   searchResults: [],
   searchQuery: '',
 
@@ -85,7 +94,28 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         m.id === id ? { ...m, content: m.content + content } : m
       ),
     })),
-  setStreaming: (streaming) => set({ streaming }),
+  setStreaming: (streaming) => {
+    if (!streaming) {
+      set({ streaming: false, streamingAgentIds: [] });
+    } else {
+      set({ streaming: true });
+    }
+  },
+  addStreamingAgent: (agentId) =>
+    set((s) => ({
+      streaming: true,
+      streamingAgentIds: s.streamingAgentIds.includes(agentId)
+        ? s.streamingAgentIds
+        : [...s.streamingAgentIds, agentId],
+    })),
+  removeStreamingAgent: (agentId) =>
+    set((s) => {
+      const next = s.streamingAgentIds.filter((id) => id !== agentId);
+      return {
+        streamingAgentIds: next,
+        streaming: next.length > 0,
+      };
+    }),
 
   fetchConversations: async (agentId) => {
     set({ loading: true });
@@ -105,7 +135,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const res = await fetch(`/api/conversations/${conversationId}/messages`, { headers: authHeaders() });
       if (!res.ok) { set({ loading: false }); return; }
       const json = await res.json();
-      set({ messages: json.data || [], loading: false });
+      // Hydrate agent_id/agent_name from metadata
+      const messages = (json.data || []).map((m: any) => ({
+        ...m,
+        metadata: typeof m.metadata === 'string' ? JSON.parse(m.metadata) : (m.metadata || {}),
+        agent_id: m.metadata?.agent_id || (typeof m.metadata === 'string' ? JSON.parse(m.metadata)?.agent_id : undefined),
+        agent_name: m.metadata?.agent_name || (typeof m.metadata === 'string' ? JSON.parse(m.metadata)?.agent_name : undefined),
+      }));
+      set({ messages, loading: false });
     } catch {
       set({ loading: false });
     }
@@ -117,6 +154,22 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ title }),
     });
+    const conversation = await res.json();
+    set((s) => ({ conversations: [conversation, ...s.conversations] }));
+    return conversation;
+  },
+
+  createGroupConversation: async (agentIds, title) => {
+    const res = await fetch('/api/conversations/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ agent_ids: agentIds, title }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      toast.error(err.error || 'Failed to create group chat');
+      throw new Error(err.error);
+    }
     const conversation = await res.json();
     set((s) => ({ conversations: [conversation, ...s.conversations] }));
     return conversation;

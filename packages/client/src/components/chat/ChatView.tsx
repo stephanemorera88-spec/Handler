@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { MessageList } from './MessageList';
@@ -9,9 +9,24 @@ interface Props {
 }
 
 export function ChatView({ sendMessage }: Props) {
-  const { selectedConversationId, messages, fetchMessages, streaming, loading, createConversation, selectConversation } = useChatStore();
+  const { selectedConversationId, conversations, messages, fetchMessages, streaming, loading, createConversation, selectConversation } = useChatStore();
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
-  const agent = useAgentStore((s) => s.agents.find((a) => a.id === s.selectedAgentId));
+  const agents = useAgentStore((s) => s.agents);
+  const agent = agents.find((a) => a.id === selectedAgentId);
+
+  const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
+  const isGroup = !!selectedConversation?.is_group;
+
+  // For group chats, check if ANY agent in the group is running
+  const isRunning = useMemo(() => {
+    if (isGroup && selectedConversation?.agent_ids) {
+      return selectedConversation.agent_ids.some((id) => {
+        const a = agents.find((ag) => ag.id === id);
+        return a?.status === 'running';
+      });
+    }
+    return agent?.status === 'running';
+  }, [isGroup, selectedConversation, agents, agent]);
 
   useEffect(() => {
     if (selectedConversationId) {
@@ -22,8 +37,8 @@ export function ChatView({ sendMessage }: Props) {
   const handleSend = async (content: string) => {
     let convId = selectedConversationId;
 
-    // Auto-create conversation if none selected
-    if (!convId && selectedAgentId) {
+    // Auto-create conversation if none selected (single agent only)
+    if (!convId && selectedAgentId && !isGroup) {
       try {
         const conv = await createConversation(selectedAgentId, content.substring(0, 50));
         selectConversation(conv.id);
@@ -38,7 +53,7 @@ export function ChatView({ sendMessage }: Props) {
     }
   };
 
-  if (!selectedAgentId) {
+  if (!selectedAgentId && !isGroup) {
     return (
       <div className="chat-empty">
         <div className="chat-empty-content">
@@ -50,10 +65,14 @@ export function ChatView({ sendMessage }: Props) {
     );
   }
 
-  const isRunning = agent?.status === 'running';
   const isExternal = agent?.connection_type === 'external';
 
   const getPlaceholder = () => {
+    if (isGroup) {
+      if (!isRunning) return 'Start at least one agent in the group to chat';
+      if (streaming) return 'Agents are responding...';
+      return 'Message the group...';
+    }
     if (!isRunning) {
       if (isExternal) {
         return `${agent?.name || 'Agent'} is offline — start the external process to connect`;
@@ -71,7 +90,7 @@ export function ChatView({ sendMessage }: Props) {
           <div className="spinner" />
         </div>
       ) : (
-        <MessageList messages={messages} />
+        <MessageList messages={messages} isGroup={isGroup} />
       )}
       <InputBar
         onSend={handleSend}

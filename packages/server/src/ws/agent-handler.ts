@@ -170,6 +170,9 @@ async function handleAgentEvent(
         db.appendMessageContent(request_id, content);
       }
 
+      // Include agent attribution if available
+      const agent = currentAgentId ? db.getAgent(currentAgentId) : null;
+
       broadcast({
         type: 'message_chunk',
         conversation_id: msgRow.conversation_id,
@@ -178,6 +181,8 @@ async function handleAgentEvent(
         content,
         content_type: 'markdown',
         done,
+        agent_id: currentAgentId || undefined,
+        agent_name: agent?.name || undefined,
       });
 
       if (done) {

@@ -31,6 +31,8 @@ export interface WsMessageChunk {
   content: string;
   content_type: ContentType;
   done: boolean;
+  agent_id?: string;
+  agent_name?: string;
 }
 
 export interface WsAgentStatus {

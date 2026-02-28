@@ -80,49 +80,97 @@ async function handleClientEvent(ws: WebSocket, event: ClientEvent) {
         return sendTo(ws, { type: 'error', message: 'Conversation not found', conversation_id: event.conversation_id });
       }
 
-      // Get the agent
-      const agent = db.getAgent(conversation.agent_id);
-      if (!agent) {
-        return sendTo(ws, { type: 'error', message: 'Agent not found' });
-      }
+      const isGroup = db.isGroupConversation(conversation.id);
 
-      // Enqueue so concurrent messages to the same agent are processed sequentially
-      enqueueForAgent(agent.id, async () => {
-        // Store user message
+      if (isGroup) {
+        // ── Group chat: fan out to all agents ──
+        const agentIds = db.getConversationAgents(conversation.id);
+        const agents = agentIds.map((id) => db.getAgent(id)).filter(Boolean) as NonNullable<ReturnType<typeof db.getAgent>>[];
+
+        if (agents.length === 0) {
+          return sendTo(ws, { type: 'error', message: 'No agents in group' });
+        }
+
+        // Store user message once
         db.createMessage(conversation.id, 'user', event.content);
 
-        // Create placeholder for assistant response
-        const assistantMsg = db.createMessage(conversation.id, 'assistant', '', 'markdown');
-
-        // Send the message to the agent runtime
+        // Fan out: create a placeholder per agent and enqueue independently
         const runtime = getRuntime();
-        try {
-          await runtime.sendMessage(agent, conversation, event.content, assistantMsg.id, (chunk, done) => {
-            broadcast({
-              type: 'message_chunk',
-              conversation_id: conversation.id,
-              message_id: assistantMsg.id,
-              role: 'assistant',
-              content: chunk,
-              content_type: 'markdown',
-              done,
-            });
-          });
-        } catch (err: any) {
-          logger.error('Agent message error: %s', err.message);
-          // Clean up the empty assistant placeholder so users don't see a blank bubble
-          const msg = db.getMessageById(assistantMsg.id);
-          if (msg && !msg.content) {
-            db.deleteMessage(assistantMsg.id);
-          }
-          broadcast({
-            type: 'error',
-            message: err.message,
+        for (const agent of agents) {
+          const assistantMsg = db.createMessage(conversation.id, 'assistant', '', 'markdown', {
             agent_id: agent.id,
-            conversation_id: conversation.id,
+            agent_name: agent.name,
+          });
+
+          enqueueForAgent(agent.id, async () => {
+            try {
+              await runtime.sendMessage(agent, conversation, event.content, assistantMsg.id, (chunk, done) => {
+                broadcast({
+                  type: 'message_chunk',
+                  conversation_id: conversation.id,
+                  message_id: assistantMsg.id,
+                  role: 'assistant',
+                  content: chunk,
+                  content_type: 'markdown',
+                  done,
+                  agent_id: agent.id,
+                  agent_name: agent.name,
+                });
+              });
+            } catch (err: any) {
+              logger.error('Agent message error (%s): %s', agent.name, err.message);
+              const msg = db.getMessageById(assistantMsg.id);
+              if (msg && !msg.content) {
+                db.deleteMessage(assistantMsg.id);
+              }
+              broadcast({
+                type: 'error',
+                message: `${agent.name}: ${err.message}`,
+                agent_id: agent.id,
+                conversation_id: conversation.id,
+              });
+            }
           });
         }
-      });
+      } else {
+        // ── Single agent chat: existing behavior ──
+        const agent = db.getAgent(conversation.agent_id);
+        if (!agent) {
+          return sendTo(ws, { type: 'error', message: 'Agent not found' });
+        }
+
+        enqueueForAgent(agent.id, async () => {
+          db.createMessage(conversation.id, 'user', event.content);
+          const assistantMsg = db.createMessage(conversation.id, 'assistant', '', 'markdown');
+
+          const runtime = getRuntime();
+          try {
+            await runtime.sendMessage(agent, conversation, event.content, assistantMsg.id, (chunk, done) => {
+              broadcast({
+                type: 'message_chunk',
+                conversation_id: conversation.id,
+                message_id: assistantMsg.id,
+                role: 'assistant',
+                content: chunk,
+                content_type: 'markdown',
+                done,
+              });
+            });
+          } catch (err: any) {
+            logger.error('Agent message error: %s', err.message);
+            const msg = db.getMessageById(assistantMsg.id);
+            if (msg && !msg.content) {
+              db.deleteMessage(assistantMsg.id);
+            }
+            broadcast({
+              type: 'error',
+              message: err.message,
+              agent_id: agent.id,
+              conversation_id: conversation.id,
+            });
+          }
+        });
+      }
       break;
     }
 

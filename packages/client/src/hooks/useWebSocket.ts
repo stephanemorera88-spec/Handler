@@ -24,7 +24,7 @@ export function useWebSocket() {
   const handleEvent = useCallback((event: ServerEvent) => {
     switch (event.type) {
       case 'message_chunk': {
-        const { message_id, content, done, conversation_id } = event as any;
+        const { message_id, content, done, conversation_id, agent_id, agent_name } = event as any;
         const store = useChatStore.getState();
 
         // Only render chunks for the currently selected conversation
@@ -44,12 +44,24 @@ export function useWebSocket() {
               metadata: {},
               created_at: new Date().toISOString(),
               streaming: true,
+              agent_id,
+              agent_name,
             });
           }
         }
+
+        // Track per-agent streaming for group chats
+        if (agent_id && !done) {
+          store.addStreamingAgent(agent_id);
+        }
+
         if (done) {
           store.updateMessage(message_id, { streaming: false });
-          store.setStreaming(false);
+          if (agent_id) {
+            store.removeStreamingAgent(agent_id);
+          } else {
+            store.setStreaming(false);
+          }
         }
         break;
       }

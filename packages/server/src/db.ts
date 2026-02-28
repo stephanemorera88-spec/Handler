@@ -108,6 +108,13 @@ function initSchema() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS conversation_agents (
+      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      added_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (conversation_id, agent_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_conversations_agent ON conversations(agent_id);
     CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
@@ -115,6 +122,7 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_approvals_agent ON approvals(agent_id);
     CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status);
     CREATE INDEX IF NOT EXISTS idx_token_usage_agent ON token_usage(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_conversation_agents_agent ON conversation_agents(agent_id);
   `);
 
   // Migration: add external agent columns if they don't exist
@@ -126,6 +134,13 @@ function initSchema() {
   if (!colNames.includes('auth_token')) {
     d.exec(`ALTER TABLE agents ADD COLUMN auth_token TEXT`);
     d.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_auth_token ON agents(auth_token) WHERE auth_token IS NOT NULL`);
+  }
+
+  // Migration: add is_group column to conversations if it doesn't exist
+  const convCols = d.prepare("PRAGMA table_info(conversations)").all() as { name: string }[];
+  const convColNames = convCols.map((c) => c.name);
+  if (!convColNames.includes('is_group')) {
+    d.exec(`ALTER TABLE conversations ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0`);
   }
 }
 
@@ -270,9 +285,16 @@ export function updateAgentToken(id: string, token: string): void {
 // ─── Conversations ───────────────────────────────────────────────────
 
 export function listConversations(agentId: string): Conversation[] {
+  // Return direct conversations + group conversations this agent is a member of
   return getDb()
-    .prepare('SELECT * FROM conversations WHERE agent_id = ? ORDER BY updated_at DESC')
-    .all(agentId) as Conversation[];
+    .prepare(`
+      SELECT DISTINCT c.* FROM conversations c
+      LEFT JOIN conversation_agents ca ON ca.conversation_id = c.id
+      WHERE (c.agent_id = ? AND c.is_group = 0)
+         OR (ca.agent_id = ? AND c.is_group = 1)
+      ORDER BY c.updated_at DESC
+    `)
+    .all(agentId, agentId) as Conversation[];
 }
 
 export function getConversation(id: string): Conversation | null {
@@ -302,6 +324,52 @@ export function updateConversationSession(id: string, sessionId: string): void {
   getDb().prepare(`
     UPDATE conversations SET session_id = ?, updated_at = datetime('now') WHERE id = ?
   `).run(sessionId, id);
+}
+
+// ─── Group Conversations ────────────────────────────────────────────
+
+export function createGroupConversation(agentIds: string[], title?: string): Conversation & { agent_ids: string[] } {
+  const id = uuid();
+  const d = getDb();
+  // Use the first agent as the primary agent_id for FK compatibility
+  d.prepare(`
+    INSERT INTO conversations (id, agent_id, title, is_group) VALUES (?, ?, ?, 1)
+  `).run(id, agentIds[0], title || 'Group Chat');
+
+  const insertAgent = d.prepare(`
+    INSERT INTO conversation_agents (conversation_id, agent_id) VALUES (?, ?)
+  `);
+  for (const agentId of agentIds) {
+    insertAgent.run(id, agentId);
+  }
+
+  const conv = getConversation(id)!;
+  return { ...conv, is_group: true, agent_ids: agentIds } as any;
+}
+
+export function getConversationAgents(conversationId: string): string[] {
+  const rows = getDb()
+    .prepare('SELECT agent_id FROM conversation_agents WHERE conversation_id = ?')
+    .all(conversationId) as { agent_id: string }[];
+  return rows.map((r) => r.agent_id);
+}
+
+export function isGroupConversation(conversationId: string): boolean {
+  const row = getDb()
+    .prepare('SELECT is_group FROM conversations WHERE id = ?')
+    .get(conversationId) as { is_group: number } | undefined;
+  return row?.is_group === 1;
+}
+
+export function listGroupConversationsForAgent(agentId: string): Conversation[] {
+  return getDb()
+    .prepare(`
+      SELECT c.* FROM conversations c
+      JOIN conversation_agents ca ON ca.conversation_id = c.id
+      WHERE ca.agent_id = ? AND c.is_group = 1
+      ORDER BY c.updated_at DESC
+    `)
+    .all(agentId) as Conversation[];
 }
 
 export function searchMessages(agentId: string, query: string, limit = 20): (Message & { conversation_title: string })[] {

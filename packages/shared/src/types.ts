@@ -56,6 +56,8 @@ export interface Conversation {
   title: string;
   session_id: string | null;
   status: ConversationStatus;
+  is_group?: boolean;
+  agent_ids?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -85,6 +87,8 @@ export interface MessageMetadata {
   output_tokens?: number;
   duration_ms?: number;
   tool_calls?: ToolCallInfo[];
+  agent_id?: string;
+  agent_name?: string;
 }
 
 export interface ToolCallInfo {

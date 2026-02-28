@@ -9,17 +9,21 @@ interface Message {
   content_type: string;
   created_at: string;
   streaming?: boolean;
+  agent_id?: string;
+  agent_name?: string;
 }
 
 interface Props {
   messages: Message[];
+  isGroup?: boolean;
 }
 
-function TypingIndicator() {
+function TypingIndicator({ agentName }: { agentName?: string }) {
   return (
     <div className="message-bubble assistant">
       <div className="message-avatar">AI</div>
       <div className="message-content typing-bubble">
+        {agentName && <span className="message-agent-name">{agentName}</span>}
         <span className="typing-indicator">
           <span className="dot" />
           <span className="dot" />
@@ -30,9 +34,10 @@ function TypingIndicator() {
   );
 }
 
-export function MessageList({ messages }: Props) {
+export function MessageList({ messages, isGroup }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const streaming = useChatStore((s) => s.streaming);
+  const streamingAgentIds = useChatStore((s) => s.streamingAgentIds);
 
   // Show typing indicator when streaming but no assistant message is streaming yet
   const hasStreamingMessage = messages.some((m) => m.streaming);
@@ -40,7 +45,7 @@ export function MessageList({ messages }: Props) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, showTyping]);
+  }, [messages, showTyping, streamingAgentIds]);
 
   if (messages.length === 0) {
     return (
@@ -53,9 +58,14 @@ export function MessageList({ messages }: Props) {
   return (
     <div className="message-list">
       {messages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
+        <MessageBubble key={msg.id} message={msg} isGroup={isGroup} />
       ))}
-      {showTyping && <TypingIndicator />}
+      {showTyping && !isGroup && <TypingIndicator />}
+      {isGroup && streamingAgentIds.length > 0 && !hasStreamingMessage &&
+        streamingAgentIds.map((id) => (
+          <TypingIndicator key={`typing-${id}`} />
+        ))
+      }
       <div ref={bottomRef} />
     </div>
   );

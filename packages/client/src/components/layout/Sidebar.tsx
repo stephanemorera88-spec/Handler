@@ -4,12 +4,14 @@ import { useChatStore } from '../../stores/chatStore';
 import { useUIStore } from '../../stores/uiStore';
 import { AgentList } from '../agents/AgentList';
 import { AgentConfig } from '../agents/AgentConfig';
+import { GroupChatCreator } from '../chat/GroupChatCreator';
 
 export function Sidebar() {
   const [showConfig, setShowConfig] = useState(false);
   const [editingAgent, setEditingAgent] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [contextMenu, setContextMenu] = useState<{ id: string; y: number } | null>(null);
+  const [showGroupCreator, setShowGroupCreator] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { agents, selectedAgentId, fetchAgents, selectAgent } = useAgentStore();
@@ -84,9 +86,14 @@ export function Sidebar() {
     <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
         <h1 className="logo">Handler</h1>
-        <button className="btn btn-sm" onClick={() => { setEditingAgent(null); setShowConfig(true); }}>
-          + Agent
-        </button>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <button className="btn btn-sm" onClick={() => setShowGroupCreator(true)} title="Group Chat">
+            Group
+          </button>
+          <button className="btn btn-sm" onClick={() => { setEditingAgent(null); setShowConfig(true); }}>
+            + Agent
+          </button>
+        </div>
       </div>
 
       <AgentList
@@ -153,6 +160,7 @@ export function Sidebar() {
                   onClick={() => handleSelectConversation(conv.id)}
                   onContextMenu={(e) => handleLongPress(conv.id, e)}
                 >
+                  {!!conv.is_group && <span className="group-badge">G</span>}
                   <span className="conversation-title">{conv.title}</span>
                   <button
                     className="conversation-delete"
@@ -178,6 +186,17 @@ export function Sidebar() {
         <AgentConfig
           onClose={() => { setShowConfig(false); setEditingAgent(null); }}
           editAgent={editingAgent}
+        />
+      )}
+
+      {showGroupCreator && (
+        <GroupChatCreator
+          onClose={() => setShowGroupCreator(false)}
+          onCreated={(convId) => {
+            setShowGroupCreator(false);
+            selectConversation(convId);
+            closeSidebar();
+          }}
         />
       )}
     </div>
