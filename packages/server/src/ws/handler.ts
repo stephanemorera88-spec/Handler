@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
 import type { ClientEvent, ServerEvent } from '@handler/shared';
 import * as db from '../db';
-import { getRuntime } from '../agent/runtime';
+import { getRuntime, buildConversationContext } from '../agent/runtime';
 import { logger } from '../logger';
 import { verifyWsToken } from '../auth';
 
@@ -104,7 +104,8 @@ async function handleClientEvent(ws: WebSocket, event: ClientEvent) {
 
           enqueueForAgent(agent.id, async () => {
             try {
-              await runtime.sendMessage(agent, conversation, event.content, assistantMsg.id, (chunk, done) => {
+              const enrichedContent = buildConversationContext(conversation.id, agent.name, event.content, true);
+              await runtime.sendMessage(agent, conversation, enrichedContent, assistantMsg.id, (chunk, done) => {
                 broadcast({
                   type: 'message_chunk',
                   conversation_id: conversation.id,
@@ -146,9 +147,10 @@ async function handleClientEvent(ws: WebSocket, event: ClientEvent) {
             agent_name: agent.name,
           });
 
+          const enrichedContent = buildConversationContext(conversation.id, agent.name, event.content);
           const runtime = getRuntime();
           try {
-            await runtime.sendMessage(agent, conversation, event.content, assistantMsg.id, (chunk, done) => {
+            await runtime.sendMessage(agent, conversation, enrichedContent, assistantMsg.id, (chunk, done) => {
               broadcast({
                 type: 'message_chunk',
                 conversation_id: conversation.id,

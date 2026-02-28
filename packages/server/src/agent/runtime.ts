@@ -8,6 +8,49 @@ import { broadcast } from '../ws/handler';
 import { sendToAgent, disconnectAgent } from '../ws/agent-handler';
 import { logger } from '../logger';
 
+/**
+ * Build conversation context by prepending recent history to the current message.
+ * Agents see previous rounds but NOT the current round's parallel responses
+ * (since agents respond in parallel, current-round placeholders are empty and filtered out).
+ */
+export function buildConversationContext(
+  conversationId: string,
+  currentAgentName: string,
+  currentMessage: string,
+  isGroup: boolean = false,
+): string {
+  const { total } = db.listMessages(conversationId, 1, 0);
+  if (total === 0) return currentMessage;
+
+  const offset = Math.max(0, total - 50);
+  const { data: messages } = db.listMessages(conversationId, 50, offset);
+
+  // Skip empty placeholder messages (assistant messages with no content yet)
+  const meaningful = messages.filter(
+    (m) => m.role === 'user' || (m.role === 'assistant' && m.content.trim()),
+  );
+
+  // If no completed assistant responses exist, no history to inject
+  if (!meaningful.some((m) => m.role === 'assistant')) return currentMessage;
+
+  const header = isGroup
+    ? `[Group Chat — you are ${currentAgentName}]`
+    : `[Conversation History — you are ${currentAgentName}]`;
+
+  const lines: string[] = [header];
+
+  for (const msg of meaningful) {
+    if (msg.role === 'user') {
+      lines.push(`User: ${msg.content}`);
+    } else {
+      const name = msg.metadata?.agent_name || 'Assistant';
+      lines.push(`${name}: ${msg.content}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 const OUTPUT_START_MARKER = '---HANDLER_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---HANDLER_OUTPUT_END---';
 
