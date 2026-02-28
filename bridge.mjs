@@ -30,6 +30,11 @@ function log(source, msg) {
 }
 
 // ─── Send message to OpenClaw via CLI ───────────────────────────────
+// Rough token estimate: ~4 chars per token (good enough for cost tracking)
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
+
 function sendToClaw(content, requestId) {
   log('claw', `Running openclaw agent...`);
 
@@ -51,10 +56,12 @@ function sendToClaw(content, requestId) {
   let stdoutData = '';
   let stderrData = '';
   let sentAnyContent = false;
+  let totalOutputChars = 0;
 
   proc.stdout.on('data', (data) => {
     const text = data.toString();
     stdoutData += text;
+    totalOutputChars += text.length;
     log('claw:stdout', JSON.stringify(text).substring(0, 200));
 
     if (text.trim() && handlerReady) {
@@ -71,6 +78,7 @@ function sendToClaw(content, requestId) {
   proc.stderr.on('data', (data) => {
     const text = data.toString();
     stderrData += text;
+    totalOutputChars += text.length;
     log('claw:stderr', JSON.stringify(text).substring(0, 200));
 
     // Some CLI tools output the actual response on stderr
@@ -115,14 +123,26 @@ function sendToClaw(content, requestId) {
       }
     }
 
-    // Signal done
+    // Signal done — include estimated token usage
     if (handlerReady) {
+      const inputTokens = estimateTokens(fullMessage);
+      const outputTokens = estimateTokens(totalOutputChars > 0 ? 'x'.repeat(totalOutputChars) : '');
+      // Default pricing: ~$3/$15 per 1M tokens (Claude Sonnet-tier estimate)
+      const costUsd = (inputTokens * 3 + outputTokens * 15) / 1_000_000;
+
       handlerWs.send(JSON.stringify({
         type: 'agent.response.chunk',
         request_id: requestId,
         content: '',
         done: true,
+        usage: {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          cost_usd: costUsd,
+          model: 'openclaw',
+        },
       }));
+      log('claw', `Usage estimate: ${inputTokens} in / ${outputTokens} out — $${costUsd.toFixed(4)}`);
     }
   });
 

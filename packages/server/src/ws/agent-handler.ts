@@ -5,6 +5,12 @@ import * as db from '../db';
 import { broadcast } from './handler';
 import { logger } from '../logger';
 
+// Strip ANSI escape codes (color codes like [33m, [39m, etc.) from external agent output
+function stripAnsi(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
+
 // Connected external agents: agentId → WebSocket
 const connectedAgents = new Map<string, WebSocket>();
 
@@ -154,7 +160,9 @@ async function handleAgentEvent(
     case 'agent.response.chunk': {
       if (!authenticated || !currentAgentId) return;
 
-      const { request_id, content, done } = event;
+      const { request_id, done } = event;
+      // Strip ANSI escape codes from external agent output before storing/broadcasting
+      const content = event.content ? stripAnsi(event.content) : event.content;
 
       // Broadcast as message_chunk to browser clients
       // request_id is the messageId (assistant placeholder)
@@ -186,6 +194,34 @@ async function handleAgentEvent(
       });
 
       if (done) {
+        // Record token usage if the external agent reported it
+        if (event.usage) {
+          const { input_tokens, output_tokens, cost_usd, model } = event.usage;
+          db.recordUsage(
+            currentAgentId,
+            msgRow.conversation_id,
+            input_tokens,
+            output_tokens,
+            cost_usd,
+            model || 'external',
+          );
+
+          broadcast({
+            type: 'token_usage',
+            agent_id: currentAgentId,
+            conversation_id: msgRow.conversation_id,
+            input_tokens,
+            output_tokens,
+            cost_usd,
+          });
+
+          db.createActivity(
+            currentAgentId,
+            'tokens_used',
+            `${input_tokens} in / ${output_tokens} out — $${cost_usd.toFixed(4)}`,
+          );
+        }
+
         db.createActivity(currentAgentId, 'response_complete', 'External agent response');
       }
       break;

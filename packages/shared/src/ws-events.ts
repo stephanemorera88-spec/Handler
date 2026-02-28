@@ -96,6 +96,12 @@ export interface AgentResponseChunk {
   request_id: string;
   content: string;
   done: boolean;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number;
+    model?: string;
+  };
 }
 
 export interface AgentError {
