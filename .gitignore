@@ -2,5 +2,6 @@ node_modules/
 dist/
 data/
 *.db
+*.tsbuildinfo
 .env
 .DS_Store

@@ -6,6 +6,7 @@ import { ChatView } from './components/chat/ChatView';
 import { ActivityPanel } from './components/activity/ActivityPanel';
 import { ApprovalQueue } from './components/approvals/ApprovalQueue';
 import { LoginScreen } from './components/LoginScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useUIStore } from './stores/uiStore';
 import { useAuthStore } from './stores/authStore';
@@ -40,7 +41,7 @@ export default function App() {
   }, []);
 
   return (
-    <>
+    <ErrorBoundary>
       <Toaster
         position="top-center"
         toastOptions={{
@@ -61,6 +62,6 @@ export default function App() {
           <div className="spinner" />
         </div>
       ) : token ? <AuthenticatedApp /> : <LoginScreen />}
-    </>
+    </ErrorBoundary>
   );
 }
