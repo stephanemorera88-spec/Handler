@@ -269,12 +269,13 @@ export class AgentRuntime {
 
         case 'claude':
         default: {
-          const { claudeCode } = await import('../agent/claude-sdk');
-          await claudeCode({
+          const { anthropicChat } = await import('../agent/anthropic-sdk');
+          await anthropicChat({
             prompt: content,
             systemPrompt: agent.system_prompt || undefined,
             model: agent.model,
-            maxBudgetUsd: agent.permissions.max_cost_usd - currentUsage.total_cost_usd,
+            temperature: agent.config.temperature,
+            maxTokens: agent.permissions.max_tokens_per_message,
             onChunk: handleChunk,
             onUsage: handleUsage,
           });
