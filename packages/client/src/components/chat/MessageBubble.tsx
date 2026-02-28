@@ -41,12 +41,12 @@ export function MessageBubble({ message, isGroup }: Props) {
     ? { background: `hsl(${agentHue(message.agent_id)}, 60%, 45%)`, color: 'white' }
     : undefined;
 
-  // Avatar text: first 2 chars of agent name in group, or default
+  // Avatar text: first 2 chars of agent name, fallback to "AI"
   const avatarText = isUser
     ? 'You'
     : isSystem
       ? 'Sys'
-      : isGroup && message.agent_name
+      : message.agent_name
         ? message.agent_name.substring(0, 2).toUpperCase()
         : 'AI';
 

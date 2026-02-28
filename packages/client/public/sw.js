@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vault-v1';
+const CACHE_NAME = 'handler-v1';
 
 // Cache the app shell
 self.addEventListener('install', (event) => {

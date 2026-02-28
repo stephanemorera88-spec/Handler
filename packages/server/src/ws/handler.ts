@@ -141,7 +141,10 @@ async function handleClientEvent(ws: WebSocket, event: ClientEvent) {
 
         enqueueForAgent(agent.id, async () => {
           db.createMessage(conversation.id, 'user', event.content);
-          const assistantMsg = db.createMessage(conversation.id, 'assistant', '', 'markdown');
+          const assistantMsg = db.createMessage(conversation.id, 'assistant', '', 'markdown', {
+            agent_id: agent.id,
+            agent_name: agent.name,
+          });
 
           const runtime = getRuntime();
           try {
@@ -154,6 +157,8 @@ async function handleClientEvent(ws: WebSocket, event: ClientEvent) {
                 content: chunk,
                 content_type: 'markdown',
                 done,
+                agent_id: agent.id,
+                agent_name: agent.name,
               });
             });
           } catch (err: any) {
