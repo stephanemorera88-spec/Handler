@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { getDefaultModel } from '@handler/shared';
 import * as db from '../db';
 import { getRuntime } from '../agent/runtime';
 
@@ -11,7 +12,7 @@ const CreateAgentSchema = z.object({
   description: z.string().max(500).optional(),
   connection_type: z.enum(['builtin', 'external']).default('builtin'),
   provider: z.enum(['claude', 'openai', 'gemini', 'external']).default('claude'),
-  model: z.string().default('claude-sonnet-4-20250514'),
+  model: z.string().optional(),
   system_prompt: z.string().max(10000).optional(),
   permissions: z.object({
     network: z.boolean().optional(),
@@ -26,7 +27,10 @@ const CreateAgentSchema = z.object({
     idle_timeout_ms: z.number().int().min(5000).max(600000).optional(),
     tools: z.array(z.string()).optional(),
   }).optional(),
-});
+}).transform((data) => ({
+  ...data,
+  model: data.model || getDefaultModel(data.provider),
+}));
 
 function generateToken(): string {
   return `vlt_${crypto.randomBytes(24).toString('hex')}`;

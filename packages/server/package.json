@@ -9,6 +9,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@handler/shared": "*",
     "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
@@ -16,6 +17,7 @@
     "dotenv": "^17.3.1",
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.3",
+    "openai": "^6.25.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "uuid": "^11.0.0",

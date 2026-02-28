@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PROVIDER_MODELS, type AgentProvider } from '@handler/shared';
 import { useAgentStore } from '../../stores/agentStore';
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
     id: string;
     name: string;
     description: string;
+    provider?: AgentProvider;
     model: string;
     system_prompt: string;
     connection_type?: 'builtin' | 'external';
@@ -21,7 +23,10 @@ export function AgentConfig({ onClose, editAgent }: Props) {
 
   const [name, setName] = useState(editAgent?.name || '');
   const [description, setDescription] = useState(editAgent?.description || '');
-  const [model, setModel] = useState(editAgent?.model || 'claude-sonnet-4-20250514');
+  const [provider, setProvider] = useState<Exclude<AgentProvider, 'external'>>(
+    (editAgent?.provider as Exclude<AgentProvider, 'external'>) || 'claude'
+  );
+  const [model, setModel] = useState(editAgent?.model || PROVIDER_MODELS.claude[0].id);
   const [systemPrompt, setSystemPrompt] = useState(editAgent?.system_prompt || '');
   const [maxCost, setMaxCost] = useState(String(editAgent?.permissions?.max_cost_usd ?? 1));
   const [requiresApproval, setRequiresApproval] = useState(!!editAgent?.permissions?.requires_approval);
@@ -70,7 +75,7 @@ export function AgentConfig({ onClose, editAgent }: Props) {
           await createAgent({
             name: name.trim(),
             description: description.trim(),
-            provider: 'claude',
+            provider,
             model,
             system_prompt: systemPrompt.trim(),
           });
@@ -223,12 +228,42 @@ agent.connect();`}
 
           {!isExternal && !isExternalEdit && (
             <>
+              {!isEdit && (
+                <div className="form-group">
+                  <label>Provider</label>
+                  <select
+                    value={provider}
+                    onChange={(e) => {
+                      const p = e.target.value as Exclude<AgentProvider, 'external'>;
+                      setProvider(p);
+                      setModel(PROVIDER_MODELS[p][0].id);
+                    }}
+                  >
+                    <option value="claude">Claude</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="gemini">Gemini</option>
+                  </select>
+                </div>
+              )}
+
+              {isEdit && (
+                <div className="form-group">
+                  <label>Provider</label>
+                  <input
+                    type="text"
+                    value={provider.charAt(0).toUpperCase() + provider.slice(1)}
+                    readOnly
+                    style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                  />
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Model</label>
                 <select value={model} onChange={(e) => setModel(e.target.value)}>
-                  <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                  <option value="claude-opus-4-20250514">Claude Opus 4</option>
-                  <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                  {PROVIDER_MODELS[provider].map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
                 </select>
               </div>
 

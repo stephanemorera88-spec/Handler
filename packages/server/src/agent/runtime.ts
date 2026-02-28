@@ -191,8 +191,6 @@ export class AgentRuntime {
     messageId: string,
     onChunk: (chunk: string, done: boolean) => void,
   ): Promise<void> {
-    const { claudeCode } = await import('../agent/claude-sdk');
-
     let fullResponse = '';
 
     // Check cost limit before sending
@@ -205,46 +203,84 @@ export class AgentRuntime {
       return;
     }
 
+    // Common callbacks wired into the provider-specific SDK
+    const handleChunk = (text: string) => {
+      fullResponse += text;
+      onChunk(text, false);
+    };
+
+    const handleUsage = (usage: { input_tokens: number; output_tokens: number; total_cost_usd: number; model: string }) => {
+      db.recordUsage(
+        agent.id,
+        conversation.id,
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.total_cost_usd,
+        usage.model,
+      );
+
+      broadcast({
+        type: 'token_usage',
+        agent_id: agent.id,
+        conversation_id: conversation.id,
+        input_tokens: usage.input_tokens,
+        output_tokens: usage.output_tokens,
+        cost_usd: usage.total_cost_usd,
+      });
+
+      db.createActivity(
+        agent.id,
+        'tokens_used',
+        `${usage.input_tokens} in / ${usage.output_tokens} out — $${usage.total_cost_usd.toFixed(4)}`,
+      );
+    };
+
     try {
       db.createActivity(agent.id, 'message_processing', `Sending to ${agent.model}`);
 
-      await claudeCode({
-        prompt: content,
-        systemPrompt: agent.system_prompt || undefined,
-        model: agent.model,
-        maxBudgetUsd: agent.permissions.max_cost_usd - currentUsage.total_cost_usd,
-        onChunk: (text) => {
-          fullResponse += text;
-          onChunk(text, false);
-        },
-        onUsage: (usage) => {
-          // Record token usage in DB
-          db.recordUsage(
-            agent.id,
-            conversation.id,
-            usage.input_tokens,
-            usage.output_tokens,
-            usage.total_cost_usd,
-            usage.model,
-          );
-
-          // Broadcast usage event to all clients
-          broadcast({
-            type: 'token_usage',
-            agent_id: agent.id,
-            conversation_id: conversation.id,
-            input_tokens: usage.input_tokens,
-            output_tokens: usage.output_tokens,
-            cost_usd: usage.total_cost_usd,
+      switch (agent.provider) {
+        case 'openai': {
+          const { openaiChat } = await import('../agent/openai-sdk');
+          await openaiChat({
+            prompt: content,
+            systemPrompt: agent.system_prompt || undefined,
+            model: agent.model,
+            temperature: agent.config.temperature,
+            maxTokens: agent.permissions.max_tokens_per_message,
+            onChunk: handleChunk,
+            onUsage: handleUsage,
           });
+          break;
+        }
 
-          db.createActivity(
-            agent.id,
-            'tokens_used',
-            `${usage.input_tokens} in / ${usage.output_tokens} out — $${usage.total_cost_usd.toFixed(4)}`,
-          );
-        },
-      });
+        case 'gemini': {
+          const { geminiChat } = await import('../agent/gemini-sdk');
+          await geminiChat({
+            prompt: content,
+            systemPrompt: agent.system_prompt || undefined,
+            model: agent.model,
+            temperature: agent.config.temperature,
+            maxTokens: agent.permissions.max_tokens_per_message,
+            onChunk: handleChunk,
+            onUsage: handleUsage,
+          });
+          break;
+        }
+
+        case 'claude':
+        default: {
+          const { claudeCode } = await import('../agent/claude-sdk');
+          await claudeCode({
+            prompt: content,
+            systemPrompt: agent.system_prompt || undefined,
+            model: agent.model,
+            maxBudgetUsd: agent.permissions.max_cost_usd - currentUsage.total_cost_usd,
+            onChunk: handleChunk,
+            onUsage: handleUsage,
+          });
+          break;
+        }
+      }
 
       // Persist the full response to the DB
       if (fullResponse) {
@@ -436,7 +472,7 @@ export class AgentRuntime {
 
   private readSecrets(): Record<string, string> {
     const secrets: Record<string, string> = {};
-    for (const key of ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY']) {
+    for (const key of ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'OPENAI_API_KEY', 'GEMINI_API_KEY']) {
       if (process.env[key]) secrets[key] = process.env[key]!;
     }
     return secrets;
