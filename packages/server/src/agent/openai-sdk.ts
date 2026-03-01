@@ -22,9 +22,12 @@ interface OpenAIChatOptions {
 
 // Cost per 1M tokens (USD) — update as pricing changes
 const COST_MAP: Record<string, { input: number; output: number }> = {
-  'gpt-4o':       { input: 2.50,  output: 10.00 },
-  'gpt-4o-mini':  { input: 0.15,  output: 0.60  },
-  'o3-mini':      { input: 1.10,  output: 4.40  },
+  'gpt-4o':                    { input: 2.50,  output: 10.00 },
+  'gpt-4o-mini':               { input: 0.15,  output: 0.60  },
+  'o3-mini':                   { input: 1.10,  output: 4.40  },
+  'qwen/qwen3-coder:free':    { input: 0,     output: 0     },
+  'qwen/qwen3.5-plus-02-15':  { input: 0.10,  output: 0.40  },
+  'qwen/qwen3.5-35b-a3b':     { input: 0.25,  output: 2.00  },
 };
 
 function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
@@ -51,7 +54,8 @@ export async function openaiChat(options: OpenAIChatOptions): Promise<string> {
     throw new Error('OPENAI_API_KEY is not set. Add it to your .env file.');
   }
 
-  const client = new OpenAI({ apiKey });
+  const baseURL = process.env.OPENAI_BASE_URL;
+  const client = new OpenAI({ apiKey, ...(baseURL && { baseURL }) });
   const startTime = Date.now();
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
