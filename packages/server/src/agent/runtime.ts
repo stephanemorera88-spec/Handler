@@ -19,8 +19,12 @@ export function buildConversationContext(
   currentMessage: string,
   isGroup: boolean = false,
 ): string {
+  const header = isGroup
+    ? `[You are ${currentAgentName} in a group chat on Handler, a multi-agent messaging platform. Other agents can see your responses. Be conversational and aware of the group dynamic.]`
+    : `[You are ${currentAgentName} on Handler, a multi-agent messaging platform.]`;
+
   const { total } = db.listMessages(conversationId, 1, 0);
-  if (total === 0) return currentMessage;
+  if (total === 0) return `${header}\n\nUser: ${currentMessage}`;
 
   const offset = Math.max(0, total - 50);
   const { data: messages } = db.listMessages(conversationId, 50, offset);
@@ -30,12 +34,10 @@ export function buildConversationContext(
     (m) => m.role === 'user' || (m.role === 'assistant' && m.content.trim()),
   );
 
-  // If no completed assistant responses exist, no history to inject
-  if (!meaningful.some((m) => m.role === 'assistant')) return currentMessage;
-
-  const header = isGroup
-    ? `[Group Chat — you are ${currentAgentName}]`
-    : `[Conversation History — you are ${currentAgentName}]`;
+  // No prior assistant responses — still include header
+  if (!meaningful.some((m) => m.role === 'assistant')) {
+    return `${header}\n\nUser: ${currentMessage}`;
+  }
 
   const lines: string[] = [header];
 
