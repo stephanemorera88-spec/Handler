@@ -2,7 +2,7 @@
 
 **One place for all your AI agents.**
 
-Handler is a dedicated messaging app for AI agents — separate from your personal messages, your contacts, and your private life. Chat with Claude, GPT, Gemini, Open Claw, and any custom agent, all in one interface.
+Handler is a dedicated messaging app for AI agents, separate from your personal messages, your contacts, and your private life. Chat with Claude, GPT, Gemini, Open Claw, and any custom agent, all in one interface.
 
 Free and open source. Self-host it anywhere.
 
@@ -10,16 +10,16 @@ Free and open source. Self-host it anywhere.
 
 ## Why Handler?
 
-AI agents live in your personal messaging apps — WhatsApp, Telegram, Signal, iMessage. Your agents sit next to your family, your clients, and your business conversations.
+AI agents live in your personal messaging apps: WhatsApp, Telegram, Signal, iMessage. Your agents sit next to your family, your clients, and your business conversations.
 
 Handler gives your agents their own dedicated space:
 
-- **All agents, one inbox** — Claude, GPT, Gemini, Open Claw, custom agents
-- **Multi-provider** — switch between AI providers per agent
-- **Group chat** — put multiple agents in one conversation
-- **Real-time streaming** — responses stream in as they're generated
-- **Private & self-hosted** — your data stays on your machine
-- **Mobile-ready PWA** — add to your home screen, use like a native app
+- **All agents, one inbox**: Claude, GPT, Gemini, Open Claw, custom agents
+- **Multi-provider**: switch between AI providers per agent
+- **Group chat**: put multiple agents in one conversation
+- **Real-time streaming**: responses stream in as they're generated
+- **Private & self-hosted**: your data stays on your machine
+- **Mobile-ready PWA**: add to your home screen, use like a native app
 
 ---
 
@@ -33,8 +33,8 @@ Handler gives your agents their own dedicated space:
 ### Install & Run
 
 ```bash
-git clone https://github.com/stephanemorera88-spec/Handler-.git
-cd Handler-
+git clone https://github.com/stephanemorera88-spec/Handler.git
+cd Handler
 npm install
 ```
 
@@ -90,7 +90,7 @@ docker run -p 3001:3001 --env-file .env handler
 ```bash
 npm install -g @railway/cli
 railway login
-cd Handler-
+cd Handler
 railway init
 railway vars set HANDLER_SECRET=your-password
 railway vars set ANTHROPIC_API_KEY=sk-ant-...
@@ -253,16 +253,16 @@ packages/
 
 ## Features
 
-- **Multi-provider agents** — Claude, OpenAI, Gemini, and external agents
-- **Group conversations** — multiple agents in one chat, responding in parallel
-- **Real-time streaming** — WebSocket-based message streaming
-- **Token usage tracking** — input/output tokens and cost per agent
-- **Approval workflows** — require approval before agent actions
-- **External agent SDK** — connect any agent via WebSocket
-- **Mobile PWA** — add to home screen, works offline
-- **Self-hosted** — SQLite database, no external services required
-- **Single-password auth** — simple JWT-based authentication
-- **Rate limiting** — brute-force protection on login
+- **Multi-provider agents**: Claude, OpenAI, Gemini, and external agents
+- **Group conversations**: multiple agents in one chat, responding in parallel
+- **Real-time streaming**: WebSocket-based message streaming
+- **Token usage tracking**: input/output tokens and cost per agent
+- **Approval workflows**: require approval before agent actions
+- **External agent SDK**: connect any agent via WebSocket
+- **Mobile PWA**: add to home screen, works offline
+- **Self-hosted**: SQLite database, no external services required
+- **Single-password auth**: simple JWT-based authentication
+- **Rate limiting**: brute-force protection on login
 
 ---
 
